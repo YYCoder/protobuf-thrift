@@ -1,0 +1,59 @@
+syntax = "proto3";
+package test_package;
+
+// comment enum
+enum Status {
+    Status_Unknown = 0;
+    Status_Unreviewed = 1; // comment enum
+    Status_Online = 2;
+    Status_Rejected = 3;
+    Status_Offline = 4;
+}
+message Config {
+    int64 id = 1;
+    int32 tag = 2;
+    repeated int32 type_list = 3;
+    bool boolean = 4; // comment
+    Status status = 5;
+    map<int64, string> fail_map = 6;
+    float fl = 7;
+    double db = 8;
+    bytes bs = 9;
+    TimeRange nested = 10;
+    repeated TimeRange nested_type_list = 11;
+    map<string, TimeRange> nested_type_map = 12;
+}
+message TimeRange {
+    int64 start = 1;
+    int64 end = 2;
+}
+message ReqOfTestGetApi {
+    int64 a = 1;
+    string b = 2;
+}
+message RespOfTestGetApi {
+    int32 code = 1;
+    string message = 2;
+}
+message ReqOfTestPostApi {
+    int64 a = 1;
+    string b = 2;
+}
+message RespOfTestPostApi {
+    int32 code = 1;
+    string message = 2;
+}
+
+service APIs {
+    rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) {
+        option (google.api.http) = {
+            get: "/api/test_get_api"
+        };
+    }
+    rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {
+		option (google.api.http) = {
+			post: "/api/test_get_api"
+			body: "*"
+		};
+    }
+}
