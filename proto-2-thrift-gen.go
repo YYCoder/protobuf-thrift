@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/emicklei/proto"
-	"github.com/protobuf-thrift/ast/thrift"
 	"github.com/protobuf-thrift/utils"
 	"github.com/protobuf-thrift/utils/logger"
+	goThrift "github.com/samuel/go-thrift/parser"
 )
 
 type ThriftGenerator struct {
@@ -22,7 +22,7 @@ type ThriftGenerator struct {
 	file          *os.File
 	rawContent    string
 	thriftContent bytes.Buffer
-	thriftAST     *thrift.Thrift
+	thriftAST     *goThrift.Thrift
 }
 
 func NewThriftGenerator(conf *RunnerConfig, filePath string) (res *ThriftGenerator, err error) {
@@ -79,10 +79,10 @@ func (g *ThriftGenerator) Generate() (err error) {
 
 // generate thriftAST from proto ast
 func (g *ThriftGenerator) parse() (err error) {
-	g.thriftAST = &thrift.Thrift{
-		Enums:    make(map[string]*thrift.Enum),
-		Structs:  make(map[string]*thrift.Struct),
-		Services: make(map[string]*thrift.Service),
+	g.thriftAST = &goThrift.Thrift{
+		Enums:    make(map[string]*goThrift.Enum),
+		Structs:  make(map[string]*goThrift.Struct),
+		Services: make(map[string]*goThrift.Service),
 	}
 	proto.Walk(
 		g.def,
@@ -117,28 +117,28 @@ func (g *ThriftGenerator) sink() (err error) {
 }
 
 func (g *ThriftGenerator) handleService(s *proto.Service) {
-	methodMap := make(map[string]*thrift.Method)
-	g.thriftAST.Services[s.Name] = &thrift.Service{
+	methodMap := make(map[string]*goThrift.Method)
+	g.thriftAST.Services[s.Name] = &goThrift.Service{
 		Name:    s.Name,
 		Methods: methodMap,
 	}
 	for _, ele := range s.Elements {
 		field := ele.(*proto.RPC)
 		name := field.Name
-		args := []*thrift.Field{
+		args := []*goThrift.Field{
 			// since protobuf rpc method request argument dont have name, we use a default name 'req'
 			{
 				ID:   1,
 				Name: "req",
-				Type: &thrift.Type{
+				Type: &goThrift.Type{
 					Name: field.RequestType,
 				},
 			},
 		}
-		methodMap[name] = &thrift.Method{
+		methodMap[name] = &goThrift.Method{
 			Name:      name,
 			Arguments: args,
-			ReturnType: &thrift.Type{
+			ReturnType: &goThrift.Type{
 				Name: field.ReturnsType,
 			},
 		}
@@ -146,8 +146,8 @@ func (g *ThriftGenerator) handleService(s *proto.Service) {
 }
 
 func (g *ThriftGenerator) handleEnum(s *proto.Enum) {
-	valueMap := make(map[string]*thrift.EnumValue)
-	g.thriftAST.Enums[s.Name] = &thrift.Enum{
+	valueMap := make(map[string]*goThrift.EnumValue)
+	g.thriftAST.Enums[s.Name] = &goThrift.Enum{
 		Name:   s.Name,
 		Values: valueMap,
 	}
@@ -155,7 +155,7 @@ func (g *ThriftGenerator) handleEnum(s *proto.Enum) {
 	for _, ele := range s.Elements {
 		field := ele.(*proto.EnumField)
 		name := field.Name
-		valueMap[name] = &thrift.EnumValue{
+		valueMap[name] = &goThrift.EnumValue{
 			Name:  name,
 			Value: field.Integer,
 		}
@@ -163,19 +163,19 @@ func (g *ThriftGenerator) handleEnum(s *proto.Enum) {
 }
 
 func (g *ThriftGenerator) handleMessage(m *proto.Message) {
-	fields := []*thrift.Field{}
-	g.thriftAST.Structs[m.Name] = &thrift.Struct{
+	fields := []*goThrift.Field{}
+	g.thriftAST.Structs[m.Name] = &goThrift.Struct{
 		Name:   m.Name,
 		Fields: fields,
 	}
 
 	for _, ele := range m.Elements {
-		var field *thrift.Field
+		var field *goThrift.Field
 
 		// handle fields except for map
 		mes, ok := ele.(*proto.NormalField)
 		if ok {
-			field = &thrift.Field{
+			field = &goThrift.Field{
 				ID:   mes.Sequence,
 				Name: mes.Name,
 			}
@@ -186,7 +186,7 @@ func (g *ThriftGenerator) handleMessage(m *proto.Message) {
 					logger.Error(err)
 					continue
 				}
-				field.Type = &thrift.Type{
+				field.Type = &goThrift.Type{
 					Name:      "list",
 					ValueType: t,
 				}
@@ -201,7 +201,7 @@ func (g *ThriftGenerator) handleMessage(m *proto.Message) {
 		} else {
 			mes, ok := ele.(*proto.MapField)
 			if ok {
-				field = &thrift.Field{
+				field = &goThrift.Field{
 					ID:   mes.Sequence,
 					Name: mes.Name,
 				}
@@ -215,7 +215,7 @@ func (g *ThriftGenerator) handleMessage(m *proto.Message) {
 					return
 				}
 
-				field.Type = &thrift.Type{
+				field.Type = &goThrift.Type{
 					Name:      "map",
 					KeyType:   keyType,
 					ValueType: valueType,
@@ -234,11 +234,11 @@ func (g *ThriftGenerator) handleMessage(m *proto.Message) {
 	g.thriftAST.Structs[m.Name].Fields = fields
 }
 
-func (g *ThriftGenerator) typeConverter(t string) (res *thrift.Type, err error) {
+func (g *ThriftGenerator) typeConverter(t string) (res *goThrift.Type, err error) {
 	res, err = g.basicTypeConverter(t)
 	if err != nil {
 		// if t is not a basic type, then we should convert its case, same as name
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: utils.CaseConvert(g.conf.NameCase, t),
 		}
 		return res, nil
@@ -246,30 +246,30 @@ func (g *ThriftGenerator) typeConverter(t string) (res *thrift.Type, err error) 
 	return
 }
 
-func (g *ThriftGenerator) basicTypeConverter(t string) (res *thrift.Type, err error) {
+func (g *ThriftGenerator) basicTypeConverter(t string) (res *goThrift.Type, err error) {
 	switch t {
 	case "string":
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: "string",
 		}
 	case "int64":
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: "i64",
 		}
 	case "int32":
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: "i32",
 		}
 	case "float", "double":
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: "double",
 		}
 	case "bool":
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: "bool",
 		}
 	case "bytes":
-		res = &thrift.Type{
+		res = &goThrift.Type{
 			Name: "binary",
 		}
 	default:
@@ -287,7 +287,7 @@ func (g *ThriftGenerator) sinkService() {
 			g.writeIndent()
 			g.thriftContent.WriteString(
 				fmt.Sprintf(
-					"%s %s (%d: %s %s);\n",
+					"%s %s (%d: %s %s)\n",
 					m.ReturnType.String(),
 					name,
 					m.Arguments[0].ID,
@@ -305,7 +305,7 @@ func (g *ThriftGenerator) sinkEnum() {
 		name := utils.CaseConvert(g.conf.NameCase, enum.Name)
 		g.thriftContent.WriteString(fmt.Sprintf("enum %s {\n", name))
 		// since for-range map is random-ordered, we need to sort first, then write
-		valueSlice := []*thrift.EnumValue{}
+		valueSlice := []*goThrift.EnumValue{}
 		for _, value := range enum.Values {
 			valueSlice = append(valueSlice, value)
 		}
@@ -331,7 +331,7 @@ func (g *ThriftGenerator) sinkStruct() {
 			typeName := field.Type.String()
 			fieldName := utils.CaseConvert(g.conf.FieldCase, field.Name)
 			g.writeIndent()
-			g.thriftContent.WriteString(fmt.Sprintf("%d: %s %s;\n", field.ID, typeName, fieldName))
+			g.thriftContent.WriteString(fmt.Sprintf("%d: %s %s\n", field.ID, typeName, fieldName))
 		}
 
 		g.thriftContent.WriteString("}\n")

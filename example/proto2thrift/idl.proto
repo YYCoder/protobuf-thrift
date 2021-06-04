@@ -51,9 +51,9 @@ service APIs {
         };
     }
     rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {
-		option (google.api.http) = {
-			post: "/api/test_get_api"
-			body: "*"
-		};
+        option (google.api.http) = {
+            post: "/api/test_get_api"
+            body: "*"
+        };
     }
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/protobuf-thrift/utils/logger"
 )
 
-const ASCII_NEWLINE = 10 // ascii code for \n
 const (
 	TASK_FILE_PROTO2THRIFT = iota + 1
 	TASK_FILE_THRIFT2PROTO
@@ -74,7 +73,6 @@ func NewRunner() (res *Runner, err error) {
 			task = TASK_CONTENT_PROTO2THRIFT
 		}
 	} else if taskType == "thrift2proto" {
-		// TODO:
 		if inputPath != "" {
 			task = TASK_FILE_THRIFT2PROTO
 		} else {
@@ -122,6 +120,7 @@ func (r *Runner) Run() (err error) {
 			return err
 		}
 		err = generator.Generate()
+
 	case TASK_FILE_PROTO2THRIFT:
 		var file *os.File
 		file, err = os.Open(r.config.InputPath)
@@ -141,6 +140,39 @@ func (r *Runner) Run() (err error) {
 		} else {
 			var generator *ThriftGenerator
 			generator, err = NewThriftGenerator(r.config, r.config.InputPath)
+			if err != nil {
+				return err
+			}
+			err = generator.Generate()
+		}
+
+	case TASK_CONTENT_THRIFT2PROTO:
+		var generator *ProtoGenerator
+		generator, err = NewProtoGenerator(r.config, "")
+		if err != nil {
+			return err
+		}
+		err = generator.Generate()
+
+	case TASK_FILE_THRIFT2PROTO:
+		var file *os.File
+		file, err = os.Open(r.config.InputPath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		var stat fs.FileInfo
+		stat, err = file.Stat()
+		if err != nil {
+			return err
+		}
+
+		if stat.IsDir() {
+			// TODO: recursivly generate all idl files
+		} else {
+			var generator *ProtoGenerator
+			generator, err = NewProtoGenerator(r.config, r.config.InputPath)
 			if err != nil {
 				return err
 			}

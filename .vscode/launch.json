@@ -11,13 +11,25 @@
             "mode": "auto",
             "program": "${workspaceFolder}",
             "args": [
+                // ! file pb 2 thrift
                 // "-t=proto2thrift", "-i=./example/proto2thrift/idl.proto", "-o=./example/proto2thrift/idl.thrift", "-use-space-indent=1",
                 // "-name-case=pascalCase", "-field-case=pascalCase",
                 
-                "-t=proto2thrift",
-                "-use-space-indent=1",
-                "-name-case=pascalCase",
-                "-field-case=pascalCase",
+                // ! content pb 2 thrift
+                // "-t=proto2thrift",
+                // "-use-space-indent=1",
+                // "-name-case=pascalCase",
+                // "-field-case=pascalCase",
+                
+                // ! file thrift 2 pb
+                "-t=thrift2proto", "-i=./example/thrift2proto/idl.thrift", "-o=./example/thrift2proto/idl.proto", "-use-space-indent=1",
+                "-name-case=pascalCase", "-field-case=pascalCase",
+
+                // ! content thrift 2 pb
+                // "-t=thrift2proto",
+                // "-use-space-indent=1",
+                // "-name-case=pascalCase",
+                // "-field-case=pascalCase",
             ],
         }
     ]
