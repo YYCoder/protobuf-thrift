@@ -1,0 +1,55 @@
+enum Status {
+    StatusUnknown = 0;
+    StatusUnreviewed = 1;
+    StatusOnline = 2;
+    StatusRejected = 3;
+    StatusOffline = 4;
+}
+message RespOfTestGetApi {
+    int32 Code = 1;
+    string Message = 2;
+}
+message ReqOfTestPostApi {
+    int64 A = 1;
+    string B = 2;
+}
+message RespOfTestPostApi {
+    int32 Code = 1;
+    string Message = 2;
+}
+message Config {
+    int64 Id = 1;
+    int32 Tag = 2;
+    repeated int32 TypeList = 3;
+    bool Boolean = 4;
+    Status Status = 5;
+    map<int64, string> FailMap = 6;
+    double Fl = 7;
+    double Db = 8;
+    bytes Bs = 9;
+    TimeRange Nested = 10;
+    repeated TimeRange NestedTypeList = 11;
+    map<string, TimeRange> NestedTypeMap = 12;
+}
+message TimeRange {
+    int64 Start = 1;
+    int64 End = 2;
+}
+message ReqOfTestGetApi {
+    int64 A = 1;
+    string B = 2;
+}
+service APIs {
+    rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {
+        option (google.api.http) = {
+            api.post: "/test/post"
+            api.serializer: "json"
+        };
+    }
+    rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) {
+        option (google.api.http) = {
+            api.get: "/test/get"
+            api.serializer: "json"
+        };
+    }
+}
