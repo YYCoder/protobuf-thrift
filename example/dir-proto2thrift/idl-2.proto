@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+enum OtherAEnum {
+    other_enum_unknown = 0;
+    unreviewed = 1;
+    online = 2;
+    rejected = 3;
+    offline = 4;
+}

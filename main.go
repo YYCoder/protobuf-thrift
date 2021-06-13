@@ -10,8 +10,12 @@ func main() {
 		logger.Fatal(err)
 	}
 
+	logger.Info("Convert started, please wait.")
+
 	err = runner.Run()
 	if err != nil {
 		logger.Fatal(err)
 	}
+
+	logger.Info("Convert succeeded.")
 }

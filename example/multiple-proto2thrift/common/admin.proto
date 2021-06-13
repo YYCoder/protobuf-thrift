@@ -1,0 +1,8 @@
+syntax = "proto3";
+enum Status {
+    status_unknown = 0;
+    status_unreviewed = 1;
+    status_online = 2;
+    status_rejected = 3;
+    status_offline = 4;
+}

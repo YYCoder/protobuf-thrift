@@ -5,6 +5,12 @@ enum Status {
     StatusRejected = 3
     StatusOffline = 4
 }
+enum OtherEnum {
+    Unreviewed = 1
+    Online = 2
+    Rejected = 3
+    Offline = 4
+}
 struct RespOfTestGetApi {
     1: required i32 Code
     2: optional string Message
@@ -39,9 +45,18 @@ struct ReqOfTestGetApi {
     1: i64 A
     2: string B
 }
+struct ReqOfTestOther {
+    1: i64 A
+    2: string B
+}
+struct RespOfTestOther {
+    1: i64 A
+    2: string B
+}
 service APIs {
     RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req) (api.get = "/test/get", api.serializer = "json")
     RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req) (api.post = "/test/post", api.serializer = "json") // comment
+    RespOfTestOther TestOther (1: ReqOfTestOther Req)
 }
 
 

@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"io"
-	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 
 	"github.com/protobuf-thrift/utils/logger"
@@ -23,28 +23,33 @@ type Runner struct {
 
 type RunnerConfig struct {
 	RawContent string
-	InputPath  string
-	OutputPath string
+	InputPath  string // absolute path for input idl file
+	OutputDir  string // absolute path for output dir
 	Task       int
 
 	UseSpaceIndent bool
 	IndentSpace    string
 	FieldCase      string
 	NameCase       string
+
+	// pb config
+	Syntax int // 2 or 3
 }
 
 func NewRunner() (res *Runner, err error) {
-	var rawContent, inputPath, outputPath, taskType, useSpaceIndent, indentSpace string
+	var rawContent, inputPath, outputDir, taskType, useSpaceIndent, indentSpace string
 	var nameCase, fieldCase string
+	var syntaxStr string
 
 	// flags declaration using flag package
 	flag.StringVar(&taskType, "t", "", "proto => thrift or thrift => proto, valid values proto2thrift and thrift2proto")
 	flag.StringVar(&inputPath, "i", "", "The idl's file path or directory, if is a directory, it will iterate all idl files")
-	flag.StringVar(&outputPath, "o", "", "The output idl file path")
+	flag.StringVar(&outputDir, "o", "", "The output idl dir path")
 	flag.StringVar(&useSpaceIndent, "use-space-indent", "0", "Use space for indent rather than tab")
 	flag.StringVar(&indentSpace, "indent-space", "4", "The space count for each indent")
 	flag.StringVar(&fieldCase, "field-case", "camelCase", "Text case for enum field and message or struct field, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase")
 	flag.StringVar(&nameCase, "name-case", "camelCase", "Text case for enum and message or struct name, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase")
+	flag.StringVar(&syntaxStr, "syntax", "3", "Syntax for generated protobuf idl")
 
 	flag.Parse() // after declaring flags we need to call it
 
@@ -53,16 +58,10 @@ func NewRunner() (res *Runner, err error) {
 	}
 
 	// check if cli params match
-	if taskType != "proto2thrift" && taskType != "thrift2proto" {
-		logger.Fatal("You must specify which task you want to run, proto2thrift or thrift2proto.")
-	} else if inputPath != "" && outputPath == "" {
-		logger.Fatal("You must specify the output path.")
-	}
-
-	_, err = strconv.Atoi(indentSpace)
-	if err != nil {
-		logger.Fatalf("Invalid indent-space option %v", indentSpace)
-	}
+	ValidateTaskType(taskType)
+	inputPath, outputDir = ValidateInputAndOutput(inputPath, outputDir)
+	ValidateIndentSpace(indentSpace)
+	syntax := ValidateSyntax(syntaxStr)
 
 	var task int
 	spaceIndent := useSpaceIndent == "1"
@@ -98,12 +97,13 @@ func NewRunner() (res *Runner, err error) {
 	config := &RunnerConfig{
 		RawContent:     rawContent,
 		InputPath:      inputPath,
-		OutputPath:     outputPath,
+		OutputDir:      outputDir,
 		UseSpaceIndent: spaceIndent,
 		IndentSpace:    indentSpace,
 		FieldCase:      fieldCase,
 		NameCase:       nameCase,
 		Task:           task,
+		Syntax:         syntax,
 	}
 	res = &Runner{
 		config: config,
@@ -112,72 +112,61 @@ func NewRunner() (res *Runner, err error) {
 }
 
 func (r *Runner) Run() (err error) {
-	switch r.config.Task {
-	case TASK_CONTENT_PROTO2THRIFT:
-		var generator *ThriftGenerator
-		generator, err = NewThriftGenerator(r.config, "")
+	var generator Generator
+	generator, err = NewGenerator(r.config)
+	if err != nil {
+		return
+	}
+	err = generator.Generate()
+	return
+}
+
+func ValidateTaskType(taskType string) {
+	if taskType != "proto2thrift" && taskType != "thrift2proto" {
+		logger.Fatal("You must specify which task you want to run, proto2thrift or thrift2proto.")
+	}
+}
+
+func ValidateInputAndOutput(inputPath string, outputDir string) (inputAbs string, outputAbs string) {
+	if inputPath != "" && outputDir == "" {
+		logger.Fatal("You must specify the output path.")
+	}
+
+	if filepath.IsAbs(inputPath) {
+		inputAbs = inputPath
+	} else {
+		cwd, err := os.Getwd()
 		if err != nil {
-			return err
+			logger.Fatal(err)
+			return
 		}
-		err = generator.Generate()
+		inputAbs = filepath.Join(cwd, inputPath)
+	}
 
-	case TASK_FILE_PROTO2THRIFT:
-		var file *os.File
-		file, err = os.Open(r.config.InputPath)
+	if filepath.IsAbs(outputDir) {
+		outputAbs = outputDir
+	} else {
+		cwd, err := os.Getwd()
 		if err != nil {
-			return err
+			logger.Fatal(err)
+			return
 		}
-		defer file.Close()
+		outputAbs = filepath.Join(cwd, outputDir)
+	}
+	return
+}
 
-		var stat fs.FileInfo
-		stat, err = file.Stat()
-		if err != nil {
-			return err
-		}
+func ValidateIndentSpace(indentSpace string) {
+	_, err := strconv.Atoi(indentSpace)
+	if err != nil {
+		logger.Fatalf("Invalid indent-space option %v", indentSpace)
+	}
+}
 
-		if stat.IsDir() {
-			// TODO: recursivly generate all idl files
-		} else {
-			var generator *ThriftGenerator
-			generator, err = NewThriftGenerator(r.config, r.config.InputPath)
-			if err != nil {
-				return err
-			}
-			err = generator.Generate()
-		}
-
-	case TASK_CONTENT_THRIFT2PROTO:
-		var generator *ProtoGenerator
-		generator, err = NewProtoGenerator(r.config, "")
-		if err != nil {
-			return err
-		}
-		err = generator.Generate()
-
-	case TASK_FILE_THRIFT2PROTO:
-		var file *os.File
-		file, err = os.Open(r.config.InputPath)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		var stat fs.FileInfo
-		stat, err = file.Stat()
-		if err != nil {
-			return err
-		}
-
-		if stat.IsDir() {
-			// TODO: recursivly generate all idl files
-		} else {
-			var generator *ProtoGenerator
-			generator, err = NewProtoGenerator(r.config, r.config.InputPath)
-			if err != nil {
-				return err
-			}
-			err = generator.Generate()
-		}
+func ValidateSyntax(syntaxStr string) (res int) {
+	var err error
+	if res, err = strconv.Atoi(syntaxStr); err != nil {
+		logger.Fatalf("Invalid syntax option %v", syntaxStr)
 	}
 	return
 }

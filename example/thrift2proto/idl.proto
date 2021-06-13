@@ -1,3 +1,4 @@
+syntax = "proto3";
 enum Status {
     StatusUnknown = 0;
     StatusUnreviewed = 1;
@@ -5,9 +6,12 @@ enum Status {
     StatusRejected = 3;
     StatusOffline = 4;
 }
-message RespOfTestGetApi {
-    int32 Code = 1;
-    string Message = 2;
+enum OtherEnum {
+    OtherEnumUnknown = 0;
+    Unreviewed = 1;
+    Online = 2;
+    Rejected = 3;
+    Offline = 4;
 }
 message ReqOfTestPostApi {
     int64 A = 1;
@@ -39,17 +43,30 @@ message ReqOfTestGetApi {
     int64 A = 1;
     string B = 2;
 }
+message ReqOfTestOther {
+    int64 A = 1;
+    string B = 2;
+}
+message RespOfTestOther {
+    int64 A = 1;
+    string B = 2;
+}
+message RespOfTestGetApi {
+    int32 Code = 1;
+    string Message = 2;
+}
 service APIs {
-    rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {
-        option (google.api.http) = {
-            api.post: "/test/post"
-            api.serializer: "json"
-        };
-    }
     rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) {
         option (google.api.http) = {
             api.get: "/test/get"
             api.serializer: "json"
         };
     }
+    rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {
+        option (google.api.http) = {
+            api.post: "/test/post"
+            api.serializer: "json"
+        };
+    }
+    rpc TestOther(ReqOfTestOther) returns (RespOfTestOther) {}
 }

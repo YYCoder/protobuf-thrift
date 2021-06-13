@@ -1,0 +1,26 @@
+syntax = "proto3";
+import "./test.proto";
+
+enum OtherEnum {
+    other_enum_unknown = 0;
+    unreviewed = 1;
+    online = 2;
+    rejected = 3;
+    offline = 4;
+}
+message Config {
+    int64 id = 1;
+    int32 tag = 2;
+    repeated int32 type_list = 3;
+    bool boolean = 4;
+    map<int64, string> fail_map = 6;
+    double fl = 7;
+    double db = 8;
+    bytes bs = 9;
+    test.TimeRange nested = 10;
+    repeated test.TimeRange nested_type_list = 11;
+    map<string, test.TimeRange> nested_type_map = 12;
+}
+service APIs {
+    rpc TestOther(Config) returns (Config) {}
+}

@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -16,40 +16,43 @@ import (
 	goThrift "github.com/samuel/go-thrift/parser"
 )
 
-type ThriftGenerator struct {
-	conf          *RunnerConfig
+type thriftGenerator struct {
+	conf          *thriftGeneratorConfig
 	def           *proto.Proto
 	file          *os.File
-	rawContent    string
 	thriftContent bytes.Buffer
 	thriftAST     *goThrift.Thrift
+	newFiles      []FileInfo
 }
 
-func NewThriftGenerator(conf *RunnerConfig, filePath string) (res *ThriftGenerator, err error) {
-	var parser *proto.Parser
-	var rawContent string
-	var file *os.File
-	if conf.Task == TASK_FILE_PROTO2THRIFT {
-		file, err = os.Open(filePath)
-		if err != nil {
-			return nil, err
-		}
-		var content []byte
-		content, err = io.ReadAll(file)
-		rawContent = string(content)
+type thriftGeneratorConfig struct {
+	taskType   int
+	filePath   string // absolute path for current file
+	fileName   string // relative filename including path for file to be generated
+	rawContent string
+	outputDir  string // absolute path for output dir
 
-		// if os.File is been read by io.ReadAll, then proto.NewParser can't read it, so use
-		// os.Open twice
-		file, err = os.Open(filePath)
+	useSpaceIndent bool
+	indentSpace    string
+	fieldCase      string
+	nameCase       string
+
+	// pb config
+	syntax int // 2 or 3
+}
+
+func NewThriftGenerator(conf *thriftGeneratorConfig) (res SubGenerator, err error) {
+	var parser *proto.Parser
+	var file *os.File
+	if conf.taskType == TASK_FILE_PROTO2THRIFT {
+		file, err = os.Open(conf.filePath)
 		if err != nil {
 			return nil, err
 		}
 		defer file.Close()
 		parser = proto.NewParser(file)
-	} else if conf.Task == TASK_CONTENT_PROTO2THRIFT {
-		rd := strings.NewReader(conf.RawContent)
-
-		rawContent = conf.RawContent
+	} else if conf.taskType == TASK_CONTENT_PROTO2THRIFT {
+		rd := strings.NewReader(conf.rawContent)
 		parser = proto.NewParser(rd)
 	}
 
@@ -58,51 +61,61 @@ func NewThriftGenerator(conf *RunnerConfig, filePath string) (res *ThriftGenerat
 		return
 	}
 
-	res = &ThriftGenerator{
-		conf:       conf,
-		def:        definition,
-		file:       file,
-		rawContent: rawContent,
+	res = &thriftGenerator{
+		conf: conf,
+		def:  definition,
+		file: file,
 	}
 	return
 }
 
-func (g *ThriftGenerator) Generate() (err error) {
-	if err = g.parse(); err != nil {
-		return
-	}
-	if err = g.sink(); err != nil {
-		return
+func (g *thriftGenerator) FilePath() (res string) {
+	if g.conf.taskType == TASK_CONTENT_PROTO2THRIFT {
+		res = ""
+	} else {
+		res = g.conf.filePath
 	}
 	return
 }
 
 // generate thriftAST from proto ast
-func (g *ThriftGenerator) parse() (err error) {
+func (g *thriftGenerator) Parse() (newFiles []FileInfo, err error) {
 	g.thriftAST = &goThrift.Thrift{
+		Includes: make(map[string]string),
 		Enums:    make(map[string]*goThrift.Enum),
 		Structs:  make(map[string]*goThrift.Struct),
 		Services: make(map[string]*goThrift.Service),
 	}
 	proto.Walk(
 		g.def,
+		proto.WithImport(g.handleImport),
 		proto.WithService(g.handleService),
 		proto.WithMessage(g.handleMessage),
 		proto.WithEnum(g.handleEnum),
 	)
+
+	newFiles = g.newFiles
 	return
 }
 
 // write thrift code from thriftAST to output
-func (g *ThriftGenerator) sink() (err error) {
+func (g *thriftGenerator) Sink() (err error) {
+	g.sinkImport()
 	g.sinkEnum()
 	g.sinkStruct()
 	g.sinkService()
 
-	if g.conf.OutputPath != "" {
+	if g.conf.outputDir != "" {
 		var file *os.File
-		file, err = os.Create(g.conf.OutputPath)
+		err = os.MkdirAll(g.conf.outputDir, 0755)
 		if err != nil {
+			logger.Errorf("Error occurred when MkdirAll %v", g.conf.outputDir)
+			return
+		}
+		outputPath := filepath.Join(g.conf.outputDir, g.conf.fileName)
+		file, err = os.Create(outputPath)
+		if err != nil {
+			logger.Errorf("os.Create file %v error %v", outputPath, err)
 			return err
 		}
 		defer file.Close()
@@ -116,7 +129,32 @@ func (g *ThriftGenerator) sink() (err error) {
 	return
 }
 
-func (g *ThriftGenerator) handleService(s *proto.Service) {
+func (g *thriftGenerator) handleImport(i *proto.Import) {
+	fileName := strings.ReplaceAll(i.Filename, ".proto", ".thrift")
+	_, name := filepath.Split(fileName)
+	g.thriftAST.Includes[name] = fileName
+
+	var newFile FileInfo
+	if filepath.IsAbs(i.Filename) {
+		relPath, err := filepath.Rel(g.conf.filePath, i.Filename)
+		if err != nil {
+			logger.Errorf("filepath.Rel %v %v, err %v", g.conf.filePath, i.Filename, err)
+			return
+		}
+		newFile = FileInfo{
+			absPath:    i.Filename,
+			outputPath: filepath.Join(g.conf.outputDir, strings.ReplaceAll(relPath, ".proto", ".thrift")),
+		}
+	} else {
+		newFile = FileInfo{
+			absPath:    filepath.Join(filepath.Dir(g.conf.filePath), i.Filename),
+			outputPath: filepath.Join(g.conf.outputDir, strings.ReplaceAll(i.Filename, ".proto", ".thrift")),
+		}
+	}
+	g.newFiles = append(g.newFiles, newFile)
+}
+
+func (g *thriftGenerator) handleService(s *proto.Service) {
 	methodMap := make(map[string]*goThrift.Method)
 	g.thriftAST.Services[s.Name] = &goThrift.Service{
 		Name:    s.Name,
@@ -145,7 +183,7 @@ func (g *ThriftGenerator) handleService(s *proto.Service) {
 	}
 }
 
-func (g *ThriftGenerator) handleEnum(s *proto.Enum) {
+func (g *thriftGenerator) handleEnum(s *proto.Enum) {
 	valueMap := make(map[string]*goThrift.EnumValue)
 	g.thriftAST.Enums[s.Name] = &goThrift.Enum{
 		Name:   s.Name,
@@ -162,7 +200,7 @@ func (g *ThriftGenerator) handleEnum(s *proto.Enum) {
 	}
 }
 
-func (g *ThriftGenerator) handleMessage(m *proto.Message) {
+func (g *thriftGenerator) handleMessage(m *proto.Message) {
 	fields := []*goThrift.Field{}
 	g.thriftAST.Structs[m.Name] = &goThrift.Struct{
 		Name:   m.Name,
@@ -234,19 +272,19 @@ func (g *ThriftGenerator) handleMessage(m *proto.Message) {
 	g.thriftAST.Structs[m.Name].Fields = fields
 }
 
-func (g *ThriftGenerator) typeConverter(t string) (res *goThrift.Type, err error) {
+func (g *thriftGenerator) typeConverter(t string) (res *goThrift.Type, err error) {
 	res, err = g.basicTypeConverter(t)
 	if err != nil {
 		// if t is not a basic type, then we should convert its case, same as name
 		res = &goThrift.Type{
-			Name: utils.CaseConvert(g.conf.NameCase, t),
+			Name: utils.CaseConvert(g.conf.nameCase, t),
 		}
 		return res, nil
 	}
 	return
 }
 
-func (g *ThriftGenerator) basicTypeConverter(t string) (res *goThrift.Type, err error) {
+func (g *thriftGenerator) basicTypeConverter(t string) (res *goThrift.Type, err error) {
 	switch t {
 	case "string":
 		res = &goThrift.Type{
@@ -278,12 +316,12 @@ func (g *ThriftGenerator) basicTypeConverter(t string) (res *goThrift.Type, err 
 	return
 }
 
-func (g *ThriftGenerator) sinkService() {
+func (g *thriftGenerator) sinkService() {
 	for _, s := range g.thriftAST.Services {
-		name := utils.CaseConvert(g.conf.NameCase, s.Name)
+		name := utils.CaseConvert(g.conf.nameCase, s.Name)
 		g.thriftContent.WriteString(fmt.Sprintf("service %s {\n", name))
 		for _, m := range s.Methods {
-			name := utils.CaseConvert(g.conf.NameCase, m.Name)
+			name := utils.CaseConvert(g.conf.nameCase, m.Name)
 			g.writeIndent()
 			g.thriftContent.WriteString(
 				fmt.Sprintf(
@@ -292,7 +330,7 @@ func (g *ThriftGenerator) sinkService() {
 					name,
 					m.Arguments[0].ID,
 					m.Arguments[0].Type.String(),
-					utils.CaseConvert(g.conf.NameCase, m.Arguments[0].Name),
+					utils.CaseConvert(g.conf.nameCase, m.Arguments[0].Name),
 				),
 			)
 		}
@@ -300,9 +338,15 @@ func (g *ThriftGenerator) sinkService() {
 	}
 }
 
-func (g *ThriftGenerator) sinkEnum() {
+func (g *thriftGenerator) sinkImport() {
+	for _, filePath := range g.thriftAST.Includes {
+		g.thriftContent.WriteString(fmt.Sprintf("include \"%s\";\n", filePath))
+	}
+}
+
+func (g *thriftGenerator) sinkEnum() {
 	for _, enum := range g.thriftAST.Enums {
-		name := utils.CaseConvert(g.conf.NameCase, enum.Name)
+		name := utils.CaseConvert(g.conf.nameCase, enum.Name)
 		g.thriftContent.WriteString(fmt.Sprintf("enum %s {\n", name))
 		// since for-range map is random-ordered, we need to sort first, then write
 		valueSlice := []*goThrift.EnumValue{}
@@ -314,7 +358,7 @@ func (g *ThriftGenerator) sinkEnum() {
 		})
 
 		for _, field := range valueSlice {
-			fieldName := utils.CaseConvert(g.conf.FieldCase, field.Name)
+			fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
 			g.writeIndent()
 			g.thriftContent.WriteString(fmt.Sprintf("%s = %d\n", fieldName, field.Value))
 		}
@@ -322,14 +366,14 @@ func (g *ThriftGenerator) sinkEnum() {
 	}
 }
 
-func (g *ThriftGenerator) sinkStruct() {
+func (g *thriftGenerator) sinkStruct() {
 	for _, sct := range g.thriftAST.Structs {
-		name := utils.CaseConvert(g.conf.NameCase, sct.Name)
+		name := utils.CaseConvert(g.conf.nameCase, sct.Name)
 		g.thriftContent.WriteString(fmt.Sprintf("struct %s {\n", name))
 
 		for _, field := range sct.Fields {
 			typeName := field.Type.String()
-			fieldName := utils.CaseConvert(g.conf.FieldCase, field.Name)
+			fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
 			g.writeIndent()
 			g.thriftContent.WriteString(fmt.Sprintf("%d: %s %s\n", field.ID, typeName, fieldName))
 		}
@@ -338,9 +382,9 @@ func (g *ThriftGenerator) sinkStruct() {
 	}
 }
 
-func (g *ThriftGenerator) writeIndent() {
-	if g.conf.UseSpaceIndent {
-		spaceCount, _ := strconv.Atoi(g.conf.IndentSpace)
+func (g *thriftGenerator) writeIndent() {
+	if g.conf.useSpaceIndent {
+		spaceCount, _ := strconv.Atoi(g.conf.indentSpace)
 		for i := 0; i < spaceCount; i++ {
 			g.thriftContent.WriteString(" ")
 		}
