@@ -1,3 +1,5 @@
+namespace * test.test.test;
+
 enum Status {
     StatusUnknown = 0
     StatusUnreviewed = 1
@@ -7,9 +9,9 @@ enum Status {
 }
 struct Config {
     1: i64 Id
-    2: i32 Tag
+    2: optional i32 Tag
     3: list<i32> TypeList
-    4: bool Boolean
+    4: optional bool Boolean
     5: Status Status
     6: map<i64,string> FailMap
     7: double Fl
@@ -39,6 +41,7 @@ struct RespOfTestPostApi {
     1: i32 Code
     2: string Message
 }
+
 service APIs {
     RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req)
     RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req)

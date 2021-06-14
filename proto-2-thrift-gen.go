@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,6 +24,7 @@ type thriftGenerator struct {
 	thriftContent bytes.Buffer
 	thriftAST     *goThrift.Thrift
 	newFiles      []FileInfo
+	syntax        int
 }
 
 type thriftGeneratorConfig struct {
@@ -44,6 +46,7 @@ type thriftGeneratorConfig struct {
 func NewThriftGenerator(conf *thriftGeneratorConfig) (res SubGenerator, err error) {
 	var parser *proto.Parser
 	var file *os.File
+	var syntax int
 	if conf.taskType == TASK_FILE_PROTO2THRIFT {
 		file, err = os.Open(conf.filePath)
 		if err != nil {
@@ -51,7 +54,28 @@ func NewThriftGenerator(conf *thriftGeneratorConfig) (res SubGenerator, err erro
 		}
 		defer file.Close()
 		parser = proto.NewParser(file)
+
+		// get syntax from file
+		file1, err := os.Open(conf.filePath)
+		if err != nil {
+			return nil, err
+		}
+		defer file1.Close()
+		content, err := io.ReadAll(file1)
+		if err != nil {
+			return nil, err
+		}
+		if strings.Contains(string(content), "syntax = \"proto3\"") {
+			syntax = 3
+		} else {
+			syntax = 2
+		}
 	} else if conf.taskType == TASK_CONTENT_PROTO2THRIFT {
+		if strings.Contains(conf.rawContent, "syntax = \"proto3\"") {
+			syntax = 3
+		} else {
+			syntax = 2
+		}
 		rd := strings.NewReader(conf.rawContent)
 		parser = proto.NewParser(rd)
 	}
@@ -62,9 +86,10 @@ func NewThriftGenerator(conf *thriftGeneratorConfig) (res SubGenerator, err erro
 	}
 
 	res = &thriftGenerator{
-		conf: conf,
-		def:  definition,
-		file: file,
+		conf:   conf,
+		def:    definition,
+		file:   file,
+		syntax: syntax,
 	}
 	return
 }
@@ -86,8 +111,10 @@ func (g *thriftGenerator) Parse() (newFiles []FileInfo, err error) {
 		Structs:  make(map[string]*goThrift.Struct),
 		Services: make(map[string]*goThrift.Service),
 	}
+
 	proto.Walk(
 		g.def,
+		proto.WithPackage(g.handlePackage),
 		proto.WithImport(g.handleImport),
 		proto.WithService(g.handleService),
 		proto.WithMessage(g.handleMessage),
@@ -101,6 +128,7 @@ func (g *thriftGenerator) Parse() (newFiles []FileInfo, err error) {
 // write thrift code from thriftAST to output
 func (g *thriftGenerator) Sink() (err error) {
 	g.sinkImport()
+	g.sinkNamespace()
 	g.sinkEnum()
 	g.sinkStruct()
 	g.sinkService()
@@ -129,7 +157,19 @@ func (g *thriftGenerator) Sink() (err error) {
 	return
 }
 
+func (g *thriftGenerator) handlePackage(p *proto.Package) {
+	packageName := p.Name
+	namespace := make(map[string]string)
+	namespace["*"] = packageName
+	g.thriftAST.Namespaces = namespace
+	return
+}
+
 func (g *thriftGenerator) handleImport(i *proto.Import) {
+	if g.conf.taskType != TASK_FILE_PROTO2THRIFT {
+		return
+	}
+
 	fileName := strings.ReplaceAll(i.Filename, ".proto", ".thrift")
 	_, name := filepath.Split(fileName)
 	g.thriftAST.Includes[name] = fileName
@@ -213,9 +253,11 @@ func (g *thriftGenerator) handleMessage(m *proto.Message) {
 		// handle fields except for map
 		mes, ok := ele.(*proto.NormalField)
 		if ok {
+			optional := g.syntax == 2 && mes.Optional
 			field = &goThrift.Field{
-				ID:   mes.Sequence,
-				Name: mes.Name,
+				ID:       mes.Sequence,
+				Name:     mes.Name,
+				Optional: optional,
 			}
 
 			if mes.Repeated {
@@ -319,7 +361,7 @@ func (g *thriftGenerator) basicTypeConverter(t string) (res *goThrift.Type, err 
 func (g *thriftGenerator) sinkService() {
 	for _, s := range g.thriftAST.Services {
 		name := utils.CaseConvert(g.conf.nameCase, s.Name)
-		g.thriftContent.WriteString(fmt.Sprintf("service %s {\n", name))
+		g.thriftContent.WriteString(fmt.Sprintf("\nservice %s {\n", name))
 		for _, m := range s.Methods {
 			name := utils.CaseConvert(g.conf.nameCase, m.Name)
 			g.writeIndent()
@@ -341,6 +383,12 @@ func (g *thriftGenerator) sinkService() {
 func (g *thriftGenerator) sinkImport() {
 	for _, filePath := range g.thriftAST.Includes {
 		g.thriftContent.WriteString(fmt.Sprintf("include \"%s\";\n", filePath))
+	}
+}
+
+func (g *thriftGenerator) sinkNamespace() {
+	for key, name := range g.thriftAST.Namespaces {
+		g.thriftContent.WriteString(fmt.Sprintf("namespace %s %s;\n\n", key, name))
 	}
 }
 
@@ -375,7 +423,11 @@ func (g *thriftGenerator) sinkStruct() {
 			typeName := field.Type.String()
 			fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
 			g.writeIndent()
-			g.thriftContent.WriteString(fmt.Sprintf("%d: %s %s\n", field.ID, typeName, fieldName))
+			optStr := ""
+			if field.Optional {
+				optStr = " optional"
+			}
+			g.thriftContent.WriteString(fmt.Sprintf("%d:%s %s %s\n", field.ID, optStr, typeName, fieldName))
 		}
 
 		g.thriftContent.WriteString("}\n")

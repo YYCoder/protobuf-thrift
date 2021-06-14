@@ -1,7 +1,7 @@
-include "./test.thrift"
-include "./common/admin.thrift"
-
+include "./test.thrift";
+include "./common/admin.thrift";
 enum OtherEnum {
+    OtherEnumUnknown = 0
     Unreviewed = 1
     Online = 2
     Rejected = 3
@@ -21,10 +21,6 @@ struct Config {
     11: list<test.TimeRange> NestedTypeList
     12: map<string,test.TimeRange> NestedTypeMap
 }
-
 service APIs {
     Config TestOther (1: Config Req)
 }
-
-
-

@@ -85,8 +85,11 @@ func (g *protoGenerator) Parse() (newFiles []FileInfo, err error) {
 	g.protoAST = &proto.Proto{}
 
 	g.handleSyntax()
-	for k, i := range g.def.Includes {
-		newFiles = append(newFiles, g.handleIncludes(k, i))
+	g.handleNamespace(g.def.Namespaces)
+	if g.conf.taskType == TASK_FILE_THRIFT2PROTO {
+		for k, i := range g.def.Includes {
+			newFiles = append(newFiles, g.handleIncludes(k, i))
+		}
 	}
 	for _, i := range g.def.Enums {
 		g.handleEnum(i)
@@ -106,6 +109,19 @@ func (g *protoGenerator) handleSyntax() {
 		Parent: g.protoAST,
 	}
 	g.protoAST.Elements = append(g.protoAST.Elements, protoSyntax)
+	return
+}
+
+func (g *protoGenerator) handleNamespace(n map[string]string) {
+	var packageName string
+	for _, name := range n {
+		packageName = name
+	}
+	protoPackage := &proto.Package{
+		Name:   packageName,
+		Parent: g.protoAST,
+	}
+	g.protoAST.Elements = append(g.protoAST.Elements, protoPackage)
 	return
 }
 
@@ -277,6 +293,8 @@ func (g *protoGenerator) handleStruct(s *goThrift.Struct) {
 			logger.Warnf("Protobuf doesn't have type set")
 			continue
 		default:
+			optional := g.conf.syntax == 2 && f.Optional
+
 			fieldType, _ := g.typeConverter(f.Type)
 			pbField := &proto.Field{
 				Name:     f.Name,
@@ -285,7 +303,8 @@ func (g *protoGenerator) handleStruct(s *goThrift.Struct) {
 				Type:     fieldType,
 			}
 			pbNormalField := &proto.NormalField{
-				Field: pbField,
+				Field:    pbField,
+				Optional: optional,
 			}
 			elements = append(elements, pbNormalField)
 		}
@@ -378,6 +397,7 @@ func (g *protoGenerator) VisitSyntax(item *proto.Syntax) {
 	return
 }
 func (g *protoGenerator) VisitPackage(item *proto.Package) {
+	g.protoContent.WriteString(fmt.Sprintf("package %s;\n\n", item.Name))
 	return
 }
 func (g *protoGenerator) VisitOption(item *proto.Option) {
@@ -404,6 +424,9 @@ func (g *protoGenerator) VisitImport(item *proto.Import) {
 func (g *protoGenerator) VisitNormalField(item *proto.NormalField) {
 	name := utils.CaseConvert(g.conf.fieldCase, item.Name)
 	g.writeIndent()
+	if item.Optional {
+		g.protoContent.WriteString("optional ")
+	}
 	if item.Repeated {
 		g.protoContent.WriteString(fmt.Sprintf("repeated %s %s = %d;\n", item.Type, name, item.Sequence))
 	} else {

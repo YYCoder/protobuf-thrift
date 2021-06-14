@@ -1,3 +1,6 @@
+namespace go test.test.test
+namespace py test.test.test
+
 enum Status {
     StatusUnknown = 0
     StatusUnreviewed = 1
@@ -6,14 +9,15 @@ enum Status {
     StatusOffline = 4
 }
 enum OtherEnum {
+    OtherEnumUnknown = 0
     Unreviewed = 1
     Online = 2
     Rejected = 3
     Offline = 4
 }
 struct RespOfTestGetApi {
-    1: required i32 Code
-    2: optional string Message
+    1: i32 Code
+    2: string Message
 }
 struct ReqOfTestPostApi {
     1: i64 A
@@ -25,8 +29,8 @@ struct RespOfTestPostApi {
 }
 struct Config {
     1: i64 Id
-    2: i32 Tag
-    3: list<i32> TypeList
+    2: optional i32 Tag
+    3: optional list<i32> TypeList
     4: bool Boolean
     5: Status Status
     6: map<i64,string> FailMap
@@ -54,10 +58,7 @@ struct RespOfTestOther {
     2: string B
 }
 service APIs {
-    RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req) (api.get = "/test/get", api.serializer = "json")
-    RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req) (api.post = "/test/post", api.serializer = "json") // comment
+    RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req)
+    RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req)
     RespOfTestOther TestOther (1: ReqOfTestOther Req)
 }
-
-
-

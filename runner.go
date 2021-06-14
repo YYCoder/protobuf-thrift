@@ -57,14 +57,12 @@ func NewRunner() (res *Runner, err error) {
 		flag.PrintDefaults()
 	}
 
-	// check if cli params match
+	// validate cli params
 	ValidateTaskType(taskType)
-	inputPath, outputDir = ValidateInputAndOutput(inputPath, outputDir)
 	ValidateIndentSpace(indentSpace)
 	syntax := ValidateSyntax(syntaxStr)
-
-	var task int
 	spaceIndent := useSpaceIndent == "1"
+	var task int
 	if taskType == "proto2thrift" {
 		if inputPath != "" {
 			task = TASK_FILE_PROTO2THRIFT
@@ -77,6 +75,9 @@ func NewRunner() (res *Runner, err error) {
 		} else {
 			task = TASK_CONTENT_THRIFT2PROTO
 		}
+	}
+	if task == TASK_FILE_PROTO2THRIFT || task == TASK_FILE_THRIFT2PROTO {
+		inputPath, outputDir = ValidateInputAndOutput(inputPath, outputDir)
 	}
 
 	// read rawContent from stdin directly
