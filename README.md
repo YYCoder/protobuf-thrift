@@ -2,4 +2,5 @@
 protobuf idl to thrift, and vice versa.
 
 ### TODO
-* recursive generate imported files
+* web user interface
+* webassemblely module

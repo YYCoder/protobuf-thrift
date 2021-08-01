@@ -72,7 +72,7 @@ func (g *generator) Generate() (err error) {
 		if newFiles, err = sub.Parse(); err != nil {
 			logger.Fatalf("Error occurred when parsing file %v", sub.FilePath())
 			return
-		} else if len(newFiles) > 0 {
+		} else if len(newFiles) > 0 && g.conf.Recursive {
 			err = g.initSubGenerator(newFiles)
 			if err != nil {
 				logger.Fatalf("Error occurred when initSubGenerator file %v, %v", sub.FilePath(), err)

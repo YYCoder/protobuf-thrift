@@ -26,6 +26,7 @@ type RunnerConfig struct {
 	InputPath  string // absolute path for input idl file
 	OutputDir  string // absolute path for output dir
 	Task       int
+	Recursive  bool // recursive parse file with imported files
 
 	UseSpaceIndent bool
 	IndentSpace    string
@@ -39,12 +40,13 @@ type RunnerConfig struct {
 func NewRunner() (res *Runner, err error) {
 	var rawContent, inputPath, outputDir, taskType, useSpaceIndent, indentSpace string
 	var nameCase, fieldCase string
-	var syntaxStr string
+	var syntaxStr, recursiveStr string
 
 	// flags declaration using flag package
 	flag.StringVar(&taskType, "t", "", "proto => thrift or thrift => proto, valid values proto2thrift and thrift2proto")
 	flag.StringVar(&inputPath, "i", "", "The idl's file path or directory, if is a directory, it will iterate all idl files")
 	flag.StringVar(&outputDir, "o", "", "The output idl dir path")
+	flag.StringVar(&recursiveStr, "r", "0", "Recursive parse file with imported files")
 	flag.StringVar(&useSpaceIndent, "use-space-indent", "0", "Use space for indent rather than tab")
 	flag.StringVar(&indentSpace, "indent-space", "4", "The space count for each indent")
 	flag.StringVar(&fieldCase, "field-case", "camelCase", "Text case for enum field and message or struct field, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase")
@@ -61,6 +63,7 @@ func NewRunner() (res *Runner, err error) {
 	ValidateTaskType(taskType)
 	ValidateIndentSpace(indentSpace)
 	syntax := ValidateSyntax(syntaxStr)
+	recursive := ValidateRecursive(recursiveStr)
 	spaceIndent := useSpaceIndent == "1"
 	var task int
 	if taskType == "proto2thrift" {
@@ -105,6 +108,7 @@ func NewRunner() (res *Runner, err error) {
 		NameCase:       nameCase,
 		Task:           task,
 		Syntax:         syntax,
+		Recursive:      recursive,
 	}
 	res = &Runner{
 		config: config,
@@ -168,6 +172,21 @@ func ValidateSyntax(syntaxStr string) (res int) {
 	var err error
 	if res, err = strconv.Atoi(syntaxStr); err != nil {
 		logger.Fatalf("Invalid syntax option %v", syntaxStr)
+	}
+	return
+}
+
+func ValidateRecursive(recursiveStr string) (res bool) {
+	var err error
+	var resInt int
+	if resInt, err = strconv.Atoi(recursiveStr); err != nil {
+		logger.Fatalf("Invalid recursive option %v", recursiveStr)
+	} else {
+		if resInt == 1 {
+			res = true
+		} else {
+			res = false
+		}
 	}
 	return
 }
