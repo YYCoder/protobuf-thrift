@@ -143,6 +143,8 @@ func (g *generator) getAllFileFromDir(root string) (res []FileInfo, err error) {
 }
 
 func (g *generator) initSubGenerator(fileInfos []FileInfo) (err error) {
+	logger.Infof("initSubGenerator start: %+v", fileInfos)
+
 	files := []FileInfo{}
 
 	for _, fileInfo := range fileInfos {
@@ -240,6 +242,8 @@ func (g *generator) initSubGenerator(fileInfos []FileInfo) (err error) {
 }
 
 func (g *generator) initSubGeneratorForRawContent() (err error) {
+	logger.Info("initSubGeneratorForRawContent start")
+
 	path := "raw_content"
 	g.filesStack = append(g.filesStack, FileInfo{
 		absPath: path,
