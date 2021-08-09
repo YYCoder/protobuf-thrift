@@ -1,5 +1,5 @@
 # protobuf-thrift
-Little cli utility for lazy guy, transforming protobuf idl to thrift, and vice versa.
+Little cli utility for lazy guy😉 ~ Transforming protobuf idl to thrift, and vice versa.
 
 > [IDL](https://en.wikipedia.org/wiki/IDL)(Interface description language), which is a descriptive language used to define data types and interfaces in a way that is independent of the programming language or operating system/processor platform.
 
@@ -21,19 +21,30 @@ protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto`
 ```
 
 ### Interactive Usage
+You can simply run like `protobuf-thrift -t thrift2proto` and then, paste your original idl file to the terminal and press ctrl+D.
 
-<video src="./docs/interactive.mp4" />
+![interactive.gif](./docs/2021-08-09%2021_54_20.gif)
+
+> Note that interactive mode can not use **-r** option, as there is no files, only stdin.
 
 ### Case Converting
+Protobuf-thrift provides complete case convert feature, thanks to [strcase](https://github.com/iancoleman/strcase), available options already listed in **--help** message.
 
 ### Recursive Transforming
+Under some circumstances, you may want to transform a whole idl repo to another language, we provide you **-r** option to indicate protobuf-thrift to transform all imported files.
+
+This option is off by default, so you have to specify it explicitly.
+
+```
+protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1`
+```
 
 
 ## Options
 
 ![](./docs/usage.jpeg)
 
-## Caveats
+## Caveat
 
 Since protobuf and thrift have many different grammars, we can only transform grammars that have same meaning, e.g. protobuf message => thrift struct, protobuf enum => thrift enum.
 
@@ -53,7 +64,12 @@ Here is a list of transformation rule, so we hope you won't have to worry about 
 |bytes|binary|||
 |service|service|rpc => methods||
 |constant|const||not support currently|
+|package|namespace|||
+|import|include|||
+|syntax|||only supported in protobuf, so thrift will omit it|
+|option|||only supported in protobuf, so thrift will omit it|
+|extend|||only supported in protobuf, so thrift will omit it|
+|extension|||only supported in protobuf, so thrift will omit it|
 
-<!-- * import、package、option、syntax、extend、extension 都被忽略 -->
 
 
