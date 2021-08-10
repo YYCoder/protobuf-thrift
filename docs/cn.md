@@ -6,7 +6,7 @@
 ## 安装
 如果没有 go 开发环境，可以直接从 release 中下载最新版的对应平台的二进制文件。
 
-对于 Gophers，可以直接使用 `go get github.com/YYCoder/protobuf-thrift` 和 `go build` 自行构建。
+对于 Gophers，可以直接使用 `go install github.com/YYCoder/protobuf-thrift`。
 
 ## 使用示例
 

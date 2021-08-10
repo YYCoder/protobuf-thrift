@@ -8,7 +8,7 @@ Little cli utility for lazy guy😉 ~ Transforming protobuf idl to thrift, and v
 ## Install
 For folks don't have GO development environment, directly download corresponding platform binary from latest release is the best choice.
 
-For Gophers, you can just `go get github.com/YYCoder/protobuf-thrift` and `go build` it yourself.
+For Gophers, you can just `go install github.com/YYCoder/protobuf-thrift` it yourself.
 
 
 ## Usages
