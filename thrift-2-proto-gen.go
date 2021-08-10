@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/YYCoder/protobuf-thrift/utils"
+	"github.com/YYCoder/protobuf-thrift/utils/logger"
 	"github.com/emicklei/proto"
-	"github.com/protobuf-thrift/utils"
-	"github.com/protobuf-thrift/utils/logger"
 	goThrift "github.com/samuel/go-thrift/parser"
 )
 

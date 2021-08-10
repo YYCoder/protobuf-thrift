@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/protobuf-thrift/utils/logger"
+	"github.com/YYCoder/protobuf-thrift/utils/logger"
 )
 
 // Represent a file need to be converted, including current absolute path and absolute converted output path

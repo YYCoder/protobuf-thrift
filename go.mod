@@ -1,4 +1,4 @@
-module github.com/protobuf-thrift
+module github.com/YYCoder/protobuf-thrift
 
 go 1.16
 

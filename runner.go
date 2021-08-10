@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/protobuf-thrift/utils/logger"
+	"github.com/YYCoder/protobuf-thrift/utils/logger"
 )
 
 const (

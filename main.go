@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/protobuf-thrift/utils/logger"
+	"github.com/YYCoder/protobuf-thrift/utils/logger"
 )
 
 func main() {

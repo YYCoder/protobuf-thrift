@@ -3,6 +3,11 @@
 
 > [IDL](https://en.wikipedia.org/wiki/IDL)(Interface description language)。是指一种用于定义数据类型以及接口的描述性语言，与编程语言以及平台无关，常用在微服务架构中。
 
+## 安装
+如果没有 go 开发环境，可以直接从 release 中下载最新版的对应平台的二进制文件。
+
+对于 Gophers，可以直接使用 `go get github.com/YYCoder/protobuf-thrift` 和 `go build` 自行构建。
+
 ## 使用示例
 
 ### 基本用法
