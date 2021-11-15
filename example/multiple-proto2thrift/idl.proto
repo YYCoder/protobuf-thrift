@@ -15,7 +15,7 @@ message Config {
     repeated int32 type_list = 3;
     bool boolean = 4;
     admin.Status status = 5;
-    map<int64, string> fail_map = 6;
+    map<int64, string> fail_map = 6; // 123123
     double fl = 7;
     double db = 8;
     bytes bs = 9;

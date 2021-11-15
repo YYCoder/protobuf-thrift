@@ -1,48 +1,58 @@
 namespace * test.test.test;
 
-enum status {
-	statusUnknown = 0
-	statusUnreviewed = 1
-	statusOnline = 2
-	statusRejected = 3
-	statusOffline = 4
+// comment enum
+enum Status {
+    StatusUnknown = 0
+    StatusUnreviewed = 1 // comment enum
+    StatusOnline = 2
+    StatusRejected = 3
+    StatusOffline = 4
 }
-struct reqOfTestPostApi {
-	1: i64 a
-	2: string b
+/**
+ * comments
+ *comments 
+ */
+struct Config {
+    1: i64 Id
+    2: i32 Tag
+    3: list<i32> TypeList
+    4: bool Boolean // comment
+    5: Status Status /* 1231231     asdasd  */
+    6: map<i64, string> FailMap /* asdasdasdasdasdsad  */
+    7: double Fl
+    8: double Db
+    9: binary Bs
+    10: TimeRange Nested
+    11: list<TimeRange> NestedTypeList
+    12: map<string, TimeRange> NestedTypeMap
 }
-struct respOfTestPostApi {
-	1: i32 code
-	2: string message
+struct TimeRange {
+    1: i64 Start
+    2: i64 End
 }
-struct config {
-	1: i64 id
-	2: i32 tag
-	3: list<i32> typeList
-	4: bool boolean
-	5: status status
-	6: map<i64,string> failMap
-	7: double fl
-	8: double db
-	9: binary bs
-	10: timeRange nested
-	11: list<timeRange> nestedTypeList
-	12: map<string,timeRange> nestedTypeMap
+struct ReqOfTestGetApi {
+    1: i64 A
+    2: string B
 }
-struct timeRange {
-	1: i64 start
-	2: i64 end
+struct RespOfTestGetApi {
+    1: i32 Code
+    2: string Message
 }
-struct reqOfTestGetApi {
-	1: i64 a
-	2: string b
+struct ReqOfTestPostApi {
+    1: i64 A
+    2: string B
 }
-struct respOfTestGetApi {
-	1: i32 code
-	2: string message
+struct RespOfTestPostApi {
+    1: i32 Code
+    2: string Message
 }
+// service comment aaaa
 
-service aPIs {
-	RespOfTestGetApi testGetApi (1: ReqOfTestGetApi req)
-	RespOfTestPostApi testPostApi (1: ReqOfTestPostApi req)
+service APIs {
+    // rpc comment aaaa
+    RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req)
+    /**
+     * rpc comment bbbb 
+     */
+    RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req)
 }

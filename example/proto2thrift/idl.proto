@@ -9,13 +9,19 @@ enum Status {
     Status_Rejected = 3;
     Status_Offline = 4;
 }
+
+/* comments
+comments */
+
+
 message Config {
     int64 id = 1;
     int32 tag = 2;
     repeated int32 type_list = 3;
     bool boolean = 4; // comment
-    Status status = 5;
-    map<int64, string> fail_map = 6;
+    Status status = 5; /* 1231231
+    asdasd */
+    map<int64, string> fail_map = 6; /* asdasdasdasdasdsad */
     float fl = 7;
     double db = 8;
     bytes bs = 9;
@@ -44,12 +50,15 @@ message RespOfTestPostApi {
     string message = 2;
 }
 
+// service comment aaaa
 service APIs {
-    rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) {
-        option (google.api.http) = {
+    // rpc comment aaaa
+    rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) { // rpc comment
+        option (google.api.http) = { /* options comment */
             get: "/api/test_get_api"
         };
     }
+    /* rpc comment bbbb */
     rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {
         option (google.api.http) = {
             post: "/api/test_get_api"

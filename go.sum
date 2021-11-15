@@ -1,3 +1,7 @@
+github.com/YYCoder/thrifter v0.0.1 h1:CjrC19u9m8L1Kh/oSC1JUG2n+BZsWEnPOBmyhiZDjJE=
+github.com/YYCoder/thrifter v0.0.1/go.mod h1:S7jjpbFkt9VYlTUDkhsPhrFi++/wH+S1sJ2NLhDIdZQ=
+github.com/YYCoder/thrifter v0.0.2 h1:50Nydear+rvxmB5UxHCyKub9Jw5J9qiSFu4KulR1T8Y=
+github.com/YYCoder/thrifter v0.0.2/go.mod h1:S7jjpbFkt9VYlTUDkhsPhrFi++/wH+S1sJ2NLhDIdZQ=
 github.com/emicklei/proto v1.9.0 h1:l0QiNT6Qs7Yj0Mb4X6dnWBQer4ebei2BFcgQLbGqUDc=
 github.com/emicklei/proto v1.9.0/go.mod h1:rn1FgRS/FANiZdD2djyH7TMA9jdRDcYQ9IEN9yvjX0A=
 github.com/iancoleman/strcase v0.1.3 h1:dJBk1m2/qjL1twPLf68JND55vvivMupZ4wIzE8CTdBw=

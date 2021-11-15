@@ -12,8 +12,8 @@
             "program": "${workspaceFolder}",
             "args": [
                 // ! file pb 2 thrift
-                // "-t=proto2thrift", "-i=./example/proto2thrift/idl.proto", "-o=./example/proto2thrift", "-use-space-indent=1",
-                // "-name-case=pascalCase", "-field-case=pascalCase",
+                "-t=proto2thrift", "-i=./example/proto2thrift/idl.proto", "-o=./example/proto2thrift", "-use-space-indent=1",
+                "-name-case=pascalCase", "-field-case=pascalCase",
                 
                 // ! content pb 2 thrift
                 // "-t=proto2thrift",
@@ -32,8 +32,8 @@
                 // "-field-case=pascalCase",
 
                 // ! multiple file thrift 2 pb
-                "-t=thrift2proto", "-i=./example/multiple-thrift2proto/idl.thrift", "-o=./example/multiple-thrift2proto/output/output", "-use-space-indent=1",
-                "-name-case=pascalCase", "-field-case=snakeCase", "-syntax=3", "-r=1",
+                // "-t=thrift2proto", "-i=./example/multiple-thrift2proto/idl.thrift", "-o=./example/multiple-thrift2proto/output/output", "-use-space-indent=1",
+                // "-name-case=pascalCase", "-field-case=snakeCase", "-syntax=3", "-r=1",
                 
                 // ! multiple file pb 2 thrift
                 // "-t=proto2thrift", "-i=./example/multiple-proto2thrift/idl.proto", "-o=./example/multiple-proto2thrift", "-use-space-indent=1",

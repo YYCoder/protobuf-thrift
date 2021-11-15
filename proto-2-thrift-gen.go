@@ -13,8 +13,8 @@ import (
 
 	"github.com/YYCoder/protobuf-thrift/utils"
 	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	"github.com/YYCoder/thrifter"
 	"github.com/emicklei/proto"
-	goThrift "github.com/samuel/go-thrift/parser"
 )
 
 type thriftGenerator struct {
@@ -22,7 +22,6 @@ type thriftGenerator struct {
 	def           *proto.Proto
 	file          *os.File
 	thriftContent bytes.Buffer
-	thriftAST     *goThrift.Thrift
 	newFiles      []FileInfo
 	syntax        int
 }
@@ -103,36 +102,49 @@ func (g *thriftGenerator) FilePath() (res string) {
 	return
 }
 
-// generate thriftAST from proto ast
+// Iterate over each declare and convert it to thrift declaration.
 func (g *thriftGenerator) Parse() (newFiles []FileInfo, err error) {
-	g.thriftAST = &goThrift.Thrift{
-		Includes: make(map[string]string),
-		Enums:    make(map[string]*goThrift.Enum),
-		Structs:  make(map[string]*goThrift.Struct),
-		Services: make(map[string]*goThrift.Service),
+	for _, e := range g.def.Elements {
+		switch e.(type) {
+		case *proto.Package:
+			ele := e.(*proto.Package)
+			g.handleComment(ele.Comment, false, 0)
+			g.handlePackage(ele)
+		case *proto.Import:
+			ele := e.(*proto.Import)
+			g.handleComment(ele.Comment, false, 0)
+			g.handleImport(ele)
+		case *proto.Service:
+			ele := e.(*proto.Service)
+			g.handleComment(ele.Comment, false, 0)
+			g.handleService(ele)
+		case *proto.Message:
+			ele := e.(*proto.Message)
+			g.handleComment(ele.Comment, false, 0)
+			g.handleMessage(ele)
+		case *proto.Enum:
+			ele := e.(*proto.Enum)
+			g.handleComment(ele.Comment, false, 0)
+			g.handleEnum(ele)
+		// syntaxes that thrift does not support, only handle comments.
+		case *proto.Extensions:
+		case *proto.Syntax:
+		case *proto.Option:
+		case *proto.Comment:
+			ele := e.(*proto.Comment)
+			logger.Infof("proto.Comment comment %+v", ele)
+			g.handleComment(ele, false, 0)
+		default:
+			logger.Infof("other: %+v\n", e)
+		}
 	}
-
-	proto.Walk(
-		g.def,
-		proto.WithPackage(g.handlePackage),
-		proto.WithImport(g.handleImport),
-		proto.WithService(g.handleService),
-		proto.WithMessage(g.handleMessage),
-		proto.WithEnum(g.handleEnum),
-	)
 
 	newFiles = g.newFiles
 	return
 }
 
-// write thrift code from thriftAST to output
+// Write thrift code from thriftContent to output.
 func (g *thriftGenerator) Sink() (err error) {
-	g.sinkImport()
-	g.sinkNamespace()
-	g.sinkEnum()
-	g.sinkStruct()
-	g.sinkService()
-
 	if g.conf.outputDir != "" {
 		var file *os.File
 		err = os.MkdirAll(g.conf.outputDir, 0755)
@@ -157,23 +169,77 @@ func (g *thriftGenerator) Sink() (err error) {
 	return
 }
 
-func (g *thriftGenerator) handlePackage(p *proto.Package) {
-	packageName := p.Name
-	namespace := make(map[string]string)
-	namespace["*"] = packageName
-	g.thriftAST.Namespaces = namespace
+func (g *thriftGenerator) handleComment(ele *proto.Comment, inline bool, indentCount int) (err error) {
+	// since we only want to read comments, let's just assert it to a random type.
+	if ele == nil {
+		return
+	}
+	if inline {
+		for i := 0; i < indentCount; i++ {
+			g.writeIndent()
+		}
+		if ele.Cstyle {
+			// concat multiple line comment into one line.
+			g.thriftContent.WriteString("/*")
+			for _, line := range ele.Lines {
+				g.thriftContent.WriteString(fmt.Sprintf("%s ", line))
+			}
+			g.thriftContent.WriteString("*/")
+		} else {
+			if ele.ExtraSlash {
+				g.thriftContent.WriteString("/")
+			}
+			g.thriftContent.WriteString(fmt.Sprintf("//%s", ele.Lines[0]))
+		}
+	} else {
+		if ele.Cstyle {
+			for i := 0; i < indentCount; i++ {
+				g.writeIndent()
+			}
+			g.thriftContent.WriteString("/**")
+			for _, comment := range ele.Lines {
+				g.thriftContent.WriteString("\n")
+				for i := 0; i < indentCount; i++ {
+					g.writeIndent()
+				}
+				g.thriftContent.WriteString(" *")
+				g.thriftContent.WriteString(comment)
+			}
+			g.thriftContent.WriteString("\n")
+			for i := 0; i < indentCount; i++ {
+				g.writeIndent()
+			}
+			g.thriftContent.WriteString(" */\n")
+		} else {
+			for _, line := range ele.Lines {
+				for i := 0; i < indentCount; i++ {
+					g.writeIndent()
+				}
+				g.thriftContent.WriteString("//")
+				if ele.ExtraSlash {
+					g.thriftContent.WriteString("/")
+				}
+				g.thriftContent.WriteString(line)
+				g.thriftContent.WriteString("\n")
+			}
+		}
+	}
 	return
 }
 
+func (g *thriftGenerator) handlePackage(p *proto.Package) {
+	g.thriftContent.WriteString(fmt.Sprintf("namespace * %s;\n\n", p.Name))
+	return
+}
+
+// Analyze proto import declaration and append it to newFiles in order to recursively parse imported files. Then, convert import declaration to thrift include declaration.
 func (g *thriftGenerator) handleImport(i *proto.Import) {
 	if g.conf.taskType != TASK_FILE_PROTO2THRIFT {
 		return
 	}
 
 	fileName := strings.ReplaceAll(i.Filename, ".proto", ".thrift")
-	_, name := filepath.Split(fileName)
-	g.thriftAST.Includes[name] = fileName
-
+	// analyze dependency
 	var newFile FileInfo
 	if filepath.IsAbs(i.Filename) {
 		relPath, err := filepath.Rel(g.conf.filePath, i.Filename)
@@ -192,72 +258,118 @@ func (g *thriftGenerator) handleImport(i *proto.Import) {
 		}
 	}
 	g.newFiles = append(g.newFiles, newFile)
+
+	// convert import declaration
+	g.thriftContent.WriteString(fmt.Sprintf("include \"%s\";\n", fileName))
 }
 
 func (g *thriftGenerator) handleService(s *proto.Service) {
-	methodMap := make(map[string]*goThrift.Method)
-	g.thriftAST.Services[s.Name] = &goThrift.Service{
-		Name:    s.Name,
-		Methods: methodMap,
-	}
-	for _, ele := range s.Elements {
-		field := ele.(*proto.RPC)
-		name := field.Name
-		args := []*goThrift.Field{
-			// since protobuf rpc method request argument dont have name, we use a default name 'req'
-			{
-				ID:   1,
-				Name: "req",
-				Type: &goThrift.Type{
-					Name: field.RequestType,
-				},
-			},
+	name := utils.CaseConvert(g.conf.nameCase, s.Name)
+	g.thriftContent.WriteString(fmt.Sprintf("\nservice %s {\n", name))
+	for _, m := range s.Elements {
+		// if element is a comment
+		comment, ok := m.(*proto.Comment)
+		if ok {
+			g.handleComment(comment, false, 1)
+			continue
 		}
-		methodMap[name] = &goThrift.Method{
-			Name:      name,
-			Arguments: args,
-			ReturnType: &goThrift.Type{
-				Name: field.ReturnsType,
-			},
+
+		field := m.(*proto.RPC)
+		// handle comment first, because proto can only parse comment above rpc declaration.
+		if field.Comment != nil {
+			g.handleComment(field.Comment, false, 1)
 		}
+		name := utils.CaseConvert(g.conf.nameCase, field.Name)
+		g.writeIndent()
+		g.thriftContent.WriteString(
+			fmt.Sprintf(
+				"%s %s (%d: %s %s)\n",
+				field.ReturnsType,
+				name,
+				1,
+				field.RequestType,
+				// since protobuf rpc method request argument dont have name, we use a default name 'req'
+				utils.CaseConvert(g.conf.nameCase, "req"),
+			),
+		)
 	}
+	g.thriftContent.WriteString("}\n")
 }
 
 func (g *thriftGenerator) handleEnum(s *proto.Enum) {
-	valueMap := make(map[string]*goThrift.EnumValue)
-	g.thriftAST.Enums[s.Name] = &goThrift.Enum{
-		Name:   s.Name,
-		Values: valueMap,
+	name := utils.CaseConvert(g.conf.nameCase, s.Name)
+	g.thriftContent.WriteString(fmt.Sprintf("enum %s {\n", name))
+	// since for-range map is random-ordered, we need to sort first, then write
+	valueSlice := []*proto.EnumField{}
+	for _, value := range s.Elements {
+		ele := value.(*proto.EnumField)
+		valueSlice = append(valueSlice, ele)
 	}
+	sort.Slice(valueSlice, func(i, j int) bool {
+		return valueSlice[i].Integer < valueSlice[j].Integer
+	})
 
-	for _, ele := range s.Elements {
-		field := ele.(*proto.EnumField)
-		name := field.Name
-		valueMap[name] = &goThrift.EnumValue{
-			Name:  name,
-			Value: field.Integer,
+	for _, field := range valueSlice {
+		// handle comment above field
+		if field.Comment != nil {
+			g.handleComment(field.Comment, false, 1)
 		}
+
+		fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
+		g.writeIndent()
+		g.thriftContent.WriteString(fmt.Sprintf("%s = %d", fieldName, field.Integer))
+		// handle comment after field line
+		if field.InlineComment != nil {
+			g.thriftContent.WriteString(" ")
+			g.handleComment(field.InlineComment, true, 0)
+		}
+		g.thriftContent.WriteString("\n")
 	}
+	g.thriftContent.WriteString("}\n")
 }
 
+// Handle protobuf message declaration.
+// 1. use thrifter ast node to simplify generation of thrift code.
+// 2. if it has nested enum or message, will prefix its name with outer message name to identify.
 func (g *thriftGenerator) handleMessage(m *proto.Message) {
-	fields := []*goThrift.Field{}
-	g.thriftAST.Structs[m.Name] = &goThrift.Struct{
-		Name:   m.Name,
-		Fields: fields,
+	name := utils.CaseConvert(g.conf.nameCase, m.Name)
+	g.thriftContent.WriteString(fmt.Sprintf("struct %s {\n", name))
+	nestedEnums := []*proto.Enum{}
+	nestedMessages := []*proto.Message{}
+
+	// in case ident is a nested enum or message name, check first.
+	// NOTE: nested fields must declare before other fields refer to them, otherwise it can't be identified.
+	var getIdentFieldName = func(ident string) string {
+		nestedName := utils.CaseConvert(g.conf.fieldCase, fmt.Sprintf("%s%s", m.Name, ident))
+		for _, e := range nestedEnums {
+			if e.Name == nestedName {
+				return nestedName
+			}
+		}
+		for _, e := range nestedMessages {
+			if e.Name == nestedName {
+				return nestedName
+			}
+		}
+		return ident
 	}
 
 	for _, ele := range m.Elements {
-		var field *goThrift.Field
+		var field *thrifter.Field
+		var inlineComment, comment *proto.Comment
 
-		// handle fields except for map
-		mes, ok := ele.(*proto.NormalField)
-		if ok {
+		switch ele.(type) {
+		case *proto.NormalField:
+			mes := ele.(*proto.NormalField)
+			inlineComment = mes.InlineComment
+			comment = mes.Comment
 			optional := g.syntax == 2 && mes.Optional
-			field = &goThrift.Field{
-				ID:       mes.Sequence,
-				Name:     mes.Name,
-				Optional: optional,
+			field = &thrifter.Field{
+				ID:    mes.Sequence,
+				Ident: mes.Name,
+			}
+			if optional {
+				field.Requiredness = "optional"
 			}
 
 			if mes.Repeated {
@@ -266,9 +378,14 @@ func (g *thriftGenerator) handleMessage(m *proto.Message) {
 					logger.Error(err)
 					continue
 				}
-				field.Type = &goThrift.Type{
-					Name:      "list",
-					ValueType: t,
+				field.FieldType = &thrifter.FieldType{
+					Type: thrifter.FIELD_TYPE_LIST,
+					List: &thrifter.ListType{
+						Elem: &thrifter.FieldType{
+							Type:  thrifter.FIELD_TYPE_IDENT,
+							Ident: getIdentFieldName(t),
+						},
+					},
 				}
 			} else {
 				t, err := g.typeConverter(mes.Type)
@@ -276,15 +393,23 @@ func (g *thriftGenerator) handleMessage(m *proto.Message) {
 					logger.Error(err)
 					continue
 				}
-				field.Type = t
-			}
-		} else {
-			mes, ok := ele.(*proto.MapField)
-			if ok {
-				field = &goThrift.Field{
-					ID:   mes.Sequence,
-					Name: mes.Name,
+				field.FieldType = &thrifter.FieldType{
+					Type:  thrifter.FIELD_TYPE_IDENT,
+					Ident: getIdentFieldName(t),
 				}
+			}
+
+			g.handleField(field, comment, inlineComment)
+		case *proto.MapField:
+			mes, ok := ele.(*proto.MapField)
+			inlineComment = mes.InlineComment
+			comment = mes.Comment
+			if ok {
+				field = &thrifter.Field{
+					ID:    mes.Sequence,
+					Ident: mes.Name,
+				}
+
 				keyType, err := g.basicTypeConverter(mes.KeyType)
 				if err != nil {
 					logger.Errorf("Invalid map key type: %v", mes.KeyType)
@@ -295,143 +420,115 @@ func (g *thriftGenerator) handleMessage(m *proto.Message) {
 					return
 				}
 
-				field.Type = &goThrift.Type{
-					Name:      "map",
-					KeyType:   keyType,
-					ValueType: valueType,
+				field.FieldType = &thrifter.FieldType{
+					Type: thrifter.FIELD_TYPE_MAP,
+					Map: &thrifter.MapType{
+						Key: &thrifter.FieldType{
+							Type:  thrifter.FIELD_TYPE_IDENT,
+							Ident: getIdentFieldName(keyType),
+						},
+						Value: &thrifter.FieldType{
+							Type:  thrifter.FIELD_TYPE_IDENT,
+							Ident: getIdentFieldName(valueType),
+						},
+					},
 				}
 
 			} else {
 				logger.Errorf("Unknown invalid proto message field: %+v", mes)
 				continue
 			}
-		}
 
-		// finally append thrift field to fields slice
-		fields = append(fields, field)
+			g.handleField(field, comment, inlineComment)
+		case *proto.Enum:
+			mes := ele.(*proto.Enum)
+			mes.Name = fmt.Sprintf("%s%s", m.Name, mes.Name)
+			nestedEnums = append(nestedEnums, mes)
+		case *proto.Message:
+			mes := ele.(*proto.Message)
+			mes.Name = fmt.Sprintf("%s%s", m.Name, mes.Name)
+			nestedMessages = append(nestedMessages, mes)
+		}
 	}
 
-	g.thriftAST.Structs[m.Name].Fields = fields
+	// done handling message
+	g.thriftContent.WriteString("}\n")
+
+	for _, e := range nestedEnums {
+		g.handleEnum(e)
+	}
+
+	for _, e := range nestedMessages {
+		g.handleMessage(e)
+	}
 }
 
-func (g *thriftGenerator) typeConverter(t string) (res *goThrift.Type, err error) {
+// Convert message field to thrift field type by thrifter Field node.
+func (g *thriftGenerator) handleField(field *thrifter.Field, comment *proto.Comment, inlineComment *proto.Comment) {
+	// convert field type string
+	typeStr := ""
+	switch field.FieldType.Type {
+	case thrifter.FIELD_TYPE_LIST:
+		typeStr = fmt.Sprintf("list<%s>", field.FieldType.List.Elem.Ident)
+	case thrifter.FIELD_TYPE_MAP:
+		typeStr = fmt.Sprintf("map<%s, %s>", field.FieldType.Map.Key.Ident, field.FieldType.Map.Value.Ident)
+	case thrifter.FIELD_TYPE_IDENT:
+		typeStr = field.FieldType.Ident
+	default:
+		logger.Errorf("Unknown thrift field type: %+v", field)
+		return
+	}
+
+	// handle comment above field
+	if comment != nil {
+		g.handleComment(comment, false, 1)
+	}
+
+	fieldName := utils.CaseConvert(g.conf.fieldCase, field.Ident)
+	g.writeIndent()
+	optStr := ""
+	if field.Requiredness == "optional" {
+		optStr = " optional"
+	}
+	g.thriftContent.WriteString(fmt.Sprintf("%d:%s %s %s", field.ID, optStr, typeStr, fieldName))
+
+	// handle comment after field line
+	if inlineComment != nil {
+		g.thriftContent.WriteString(" ")
+		g.handleComment(inlineComment, true, 0)
+	}
+
+	g.thriftContent.WriteString("\n")
+}
+
+func (g *thriftGenerator) typeConverter(t string) (res string, err error) {
 	res, err = g.basicTypeConverter(t)
 	if err != nil {
 		// if t is not a basic type, then we should convert its case, same as name
-		res = &goThrift.Type{
-			Name: utils.CaseConvert(g.conf.nameCase, t),
-		}
+		res = utils.CaseConvert(g.conf.nameCase, t)
 		return res, nil
 	}
 	return
 }
 
-func (g *thriftGenerator) basicTypeConverter(t string) (res *goThrift.Type, err error) {
+func (g *thriftGenerator) basicTypeConverter(t string) (res string, err error) {
 	switch t {
 	case "string":
-		res = &goThrift.Type{
-			Name: "string",
-		}
+		res = "string"
 	case "int64":
-		res = &goThrift.Type{
-			Name: "i64",
-		}
+		res = "i64"
 	case "int32":
-		res = &goThrift.Type{
-			Name: "i32",
-		}
+		res = "i32"
 	case "float", "double":
-		res = &goThrift.Type{
-			Name: "double",
-		}
+		res = "double"
 	case "bool":
-		res = &goThrift.Type{
-			Name: "bool",
-		}
+		res = "bool"
 	case "bytes":
-		res = &goThrift.Type{
-			Name: "binary",
-		}
+		res = "binary"
 	default:
 		err = fmt.Errorf("Invalid basic type %s", t)
 	}
 	return
-}
-
-func (g *thriftGenerator) sinkService() {
-	for _, s := range g.thriftAST.Services {
-		name := utils.CaseConvert(g.conf.nameCase, s.Name)
-		g.thriftContent.WriteString(fmt.Sprintf("\nservice %s {\n", name))
-		for _, m := range s.Methods {
-			name := utils.CaseConvert(g.conf.nameCase, m.Name)
-			g.writeIndent()
-			g.thriftContent.WriteString(
-				fmt.Sprintf(
-					"%s %s (%d: %s %s)\n",
-					m.ReturnType.String(),
-					name,
-					m.Arguments[0].ID,
-					m.Arguments[0].Type.String(),
-					utils.CaseConvert(g.conf.nameCase, m.Arguments[0].Name),
-				),
-			)
-		}
-		g.thriftContent.WriteString("}\n")
-	}
-}
-
-func (g *thriftGenerator) sinkImport() {
-	for _, filePath := range g.thriftAST.Includes {
-		g.thriftContent.WriteString(fmt.Sprintf("include \"%s\";\n", filePath))
-	}
-}
-
-func (g *thriftGenerator) sinkNamespace() {
-	for key, name := range g.thriftAST.Namespaces {
-		g.thriftContent.WriteString(fmt.Sprintf("namespace %s %s;\n\n", key, name))
-	}
-}
-
-func (g *thriftGenerator) sinkEnum() {
-	for _, enum := range g.thriftAST.Enums {
-		name := utils.CaseConvert(g.conf.nameCase, enum.Name)
-		g.thriftContent.WriteString(fmt.Sprintf("enum %s {\n", name))
-		// since for-range map is random-ordered, we need to sort first, then write
-		valueSlice := []*goThrift.EnumValue{}
-		for _, value := range enum.Values {
-			valueSlice = append(valueSlice, value)
-		}
-		sort.Slice(valueSlice, func(i, j int) bool {
-			return valueSlice[i].Value < valueSlice[j].Value
-		})
-
-		for _, field := range valueSlice {
-			fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
-			g.writeIndent()
-			g.thriftContent.WriteString(fmt.Sprintf("%s = %d\n", fieldName, field.Value))
-		}
-		g.thriftContent.WriteString("}\n")
-	}
-}
-
-func (g *thriftGenerator) sinkStruct() {
-	for _, sct := range g.thriftAST.Structs {
-		name := utils.CaseConvert(g.conf.nameCase, sct.Name)
-		g.thriftContent.WriteString(fmt.Sprintf("struct %s {\n", name))
-
-		for _, field := range sct.Fields {
-			typeName := field.Type.String()
-			fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
-			g.writeIndent()
-			optStr := ""
-			if field.Optional {
-				optStr = " optional"
-			}
-			g.thriftContent.WriteString(fmt.Sprintf("%d:%s %s %s\n", field.ID, optStr, typeName, fieldName))
-		}
-
-		g.thriftContent.WriteString("}\n")
-	}
 }
 
 func (g *thriftGenerator) writeIndent() {
