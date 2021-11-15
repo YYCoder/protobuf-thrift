@@ -46,7 +46,7 @@ protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1`
 
 ![](./usage.jpeg)
 
-## 使用声明
+## 注意事项
 由于 protobuf 与 thrift 有很多语法上的不同，我们不可能完全将一种 idl 转换成另一种，protobuf-thrift 也只是一个帮助我们摆脱复制粘贴的小工具，它所提供的功能能够满足 80% 的场景就足够了。因此，我们只会尽可能将有相同语义的语法进行转换，如 protobuf message => thrift struct，protobuf enum => thrift enum。
 
 为了确保你能够明确的知道 protobuf-thrift 会如何转换，如下是目前的转换规则：
@@ -71,6 +71,45 @@ protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1`
 |option|||only supported in protobuf, so thrift will omit it|
 |extend|||only supported in protobuf, so thrift will omit it|
 |extension|||only supported in protobuf, so thrift will omit it|
+
+### 嵌套字段
+protobuf 支持在 message 结构体中嵌套字段（如 enum/message），但在 thrift 中不支持，因此 protobuf-thrift 会通过给嵌套字段的标识符使用外部 message 名称作为前缀的方式来实现相同命名空间的效果。如下例：
+
+```protobuf
+message GroupMsgTaskQueryExpress {
+    enum QueryOp {
+        Unknown = 0;
+        GT = 1;
+    }
+    message TimeRange {
+        int32 range_start = 1;
+        int32 range_end = 2;
+    }
+    QueryOp express_op = 1;
+    int32 op_int = 2;
+    TimeRange time_op = 3;
+    int32 next_op_int = 4;
+}
+```
+
+会被转换成：
+
+```thrift
+struct GroupMsgTaskQueryExpress {
+    1: GroupMsgTaskQueryExpressQueryOp ExpressOp
+    2: i32 OpInt
+    3: GroupMsgTaskQueryExpressTimeRange TimeOp
+    4: i32 NextOpInt
+}
+enum GroupMsgTaskQueryExpressQueryOp {
+    Unknown = 0
+    GT = 1
+}
+struct GroupMsgTaskQueryExpressTimeRange {
+    1: i32 RangeStart
+    2: i32 RangeEnd
+}
+```
 
 
 

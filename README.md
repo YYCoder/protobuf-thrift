@@ -1,9 +1,12 @@
 # protobuf-thrift
 Little cli utility for lazy guy😉 ~ Transforming protobuf idl to thrift, and vice versa.
 
+[![GoDoc](https://pkg.go.dev/badge/github.com/YYCoder/protobuf-thrift)](https://pkg.go.dev/github.com/YYCoder/protobuf-thrift)
+
 > [IDL](https://en.wikipedia.org/wiki/IDL)(Interface description language), which is a descriptive language used to define data types and interfaces in a way that is independent of the programming language or operating system/processor platform.
 
 [中文文档](./docs/cn.md)
+
 
 ## Install
 For folks don't have GO development environment, directly download corresponding platform binary from latest release is the best choice.
@@ -50,11 +53,11 @@ protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1`
 
 ![](./docs/usage.jpeg)
 
-## Caveat
+## Notice
 
-Since protobuf and thrift have many different grammars, we can only transform grammars that have same meaning, e.g. protobuf message => thrift struct, protobuf enum => thrift enum.
+Since protobuf and thrift have many different syntaxes, we can only transform syntaxes that have same meaning, e.g. protobuf message => thrift struct, protobuf enum => thrift enum.
 
-Here is a list of transformation rule, so we hope you won't have to worry about protobuf-thrift do sth unexpected.
+Here is a list of transformation rule, so we hope you don't have to worry about protobuf-thrift do sth unexpected.
 
 |protobuf type|thrift type|field type|notice|
 |:--:|:--:|:--:|:--:|
@@ -77,5 +80,42 @@ Here is a list of transformation rule, so we hope you won't have to worry about 
 |extend|||only supported in protobuf, so thrift will omit it|
 |extension|||only supported in protobuf, so thrift will omit it|
 
+### Nested Fields
+protobuf support nested field within message, but thrift does not, so protobuf-thrift will prefix nested field name with outer message name to work around this. for example:
 
+```protobuf
+message GroupMsgTaskQueryExpress {
+    enum QueryOp {
+        Unknown = 0;
+        GT = 1;
+    }
+    message TimeRange {
+        int32 range_start = 1;
+        int32 range_end = 2;
+    }
+    QueryOp express_op = 1;
+    int32 op_int = 2;
+    TimeRange time_op = 3;
+    int32 next_op_int = 4;
+}
+```
+
+will transform to:
+
+```thrift
+struct GroupMsgTaskQueryExpress {
+    1: GroupMsgTaskQueryExpressQueryOp ExpressOp
+    2: i32 OpInt
+    3: GroupMsgTaskQueryExpressTimeRange TimeOp
+    4: i32 NextOpInt
+}
+enum GroupMsgTaskQueryExpressQueryOp {
+    Unknown = 0
+    GT = 1
+}
+struct GroupMsgTaskQueryExpressTimeRange {
+    1: i32 RangeStart
+    2: i32 RangeEnd
+}
+```
 
