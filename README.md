@@ -1,6 +1,7 @@
 # protobuf-thrift
 Little cli utility for lazy guy😉 ~ Transforming protobuf idl to thrift, and vice versa.
 
+[![YYCoder](https://circleci.com/gh/YYCoder/protobuf-thrift.svg?style=svg)](https://app.circleci.com/pipelines/github/YYCoder/protobuf-thrift)
 [![GoDoc](https://pkg.go.dev/badge/github.com/YYCoder/protobuf-thrift)](https://pkg.go.dev/github.com/YYCoder/protobuf-thrift)
 
 > [IDL](https://en.wikipedia.org/wiki/IDL)(Interface description language), which is a descriptive language used to define data types and interfaces in a way that is independent of the programming language or operating system/processor platform.
