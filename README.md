@@ -3,6 +3,7 @@ Little cli utility for lazy guy😉 ~ Transforming protobuf idl to thrift, and v
 
 [![YYCoder](https://circleci.com/gh/YYCoder/protobuf-thrift.svg?style=svg)](https://app.circleci.com/pipelines/github/YYCoder/protobuf-thrift)
 [![GoDoc](https://pkg.go.dev/badge/github.com/YYCoder/protobuf-thrift)](https://pkg.go.dev/github.com/YYCoder/protobuf-thrift)
+[![goreportcard](https://goreportcard.com/badge/github.com/yycoder/protobuf-thrift)](https://goreportcard.com/report/github.com/yycoder/protobuf-thrift)
 
 > [IDL](https://en.wikipedia.org/wiki/IDL)(Interface description language), which is a descriptive language used to define data types and interfaces in a way that is independent of the programming language or operating system/processor platform.
 
@@ -21,13 +22,13 @@ For Gophers, you can just `go install github.com/YYCoder/protobuf-thrift` it you
 Basic thrift file to protobuf file transform:
 
 ```
-protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto`
+protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto
 ```
 
 Basic protobuf file to thrift file transform:
 
 ```
-protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto`
+protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto
 ```
 
 ### Interactive Usage
@@ -46,7 +47,7 @@ Under some circumstances, you may want to transform a whole idl repo to another 
 This option is off by default, so you have to specify it explicitly.
 
 ```
-protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1`
+protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1
 ```
 
 

@@ -1,6 +1,10 @@
 # protobuf-thrift
 为懒人准备的 protobuf 与 thrift 互转的小工具😉。
 
+[![YYCoder](https://circleci.com/gh/YYCoder/protobuf-thrift.svg?style=svg)](https://app.circleci.com/pipelines/github/YYCoder/protobuf-thrift)
+[![GoDoc](https://pkg.go.dev/badge/github.com/YYCoder/protobuf-thrift)](https://pkg.go.dev/github.com/YYCoder/protobuf-thrift)
+[![goreportcard](https://goreportcard.com/badge/github.com/yycoder/protobuf-thrift)](https://goreportcard.com/report/github.com/yycoder/protobuf-thrift)
+
 > [IDL](https://en.wikipedia.org/wiki/IDL)(Interface description language)。是指一种用于定义数据类型以及接口的描述性语言，与编程语言以及平台无关，常用在微服务架构中。
 
 ## 安装
@@ -14,13 +18,13 @@
 将 thrift 文件转成 protobuf 文件：
 
 ```
-protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto`
+protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto
 ```
 
 将 protobuf 文件转成 thrift 文件：
 
 ```
-protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto`
+protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto
 ```
 
 ### 交互式用法
@@ -38,7 +42,7 @@ protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto`
 
 
 ```
-protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1`
+protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto -r 1
 ```
 
 

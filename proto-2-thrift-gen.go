@@ -132,10 +132,9 @@ func (g *thriftGenerator) Parse() (newFiles []FileInfo, err error) {
 		case *proto.Option:
 		case *proto.Comment:
 			ele := e.(*proto.Comment)
-			logger.Infof("proto.Comment comment %+v", ele)
 			g.handleComment(ele, false, 0)
 		default:
-			logger.Infof("other: %+v\n", e)
+			// logger.Infof("other: %+v\n", e)
 		}
 	}
 

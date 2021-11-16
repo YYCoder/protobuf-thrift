@@ -10,19 +10,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/emicklei/proto"
-	goThrift "github.com/samuel/go-thrift/parser"
-
 	"github.com/YYCoder/protobuf-thrift/utils"
 	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	"github.com/YYCoder/thrifter"
+	"github.com/emicklei/proto"
 )
 
 type protoGenerator struct {
 	conf         *protoGeneratorConfig
-	def          *goThrift.Thrift
+	def          *thrifter.Thrift
 	file         *os.File
 	protoContent bytes.Buffer
-	protoAST     *proto.Proto
+	// protoAST     *proto.Proto
 }
 
 type protoGeneratorConfig struct {
@@ -42,22 +41,22 @@ type protoGeneratorConfig struct {
 }
 
 func NewProtoGenerator(conf *protoGeneratorConfig) (res SubGenerator, err error) {
-	var parser *goThrift.Parser
+	var parser *thrifter.Parser
 	var file *os.File
-	var definition *goThrift.Thrift
+	var definition *thrifter.Thrift
 	if conf.taskType == TASK_FILE_THRIFT2PROTO {
 		file, err = os.Open(conf.filePath)
 		if err != nil {
 			return nil, err
 		}
 		defer file.Close()
-		parser = &goThrift.Parser{Filesystem: nil}
-		definition, err = parser.Parse(file)
+		parser = thrifter.NewParser(file, false)
+		definition, err = parser.Parse(file.Name())
 
 	} else if conf.taskType == TASK_CONTENT_THRIFT2PROTO {
 		rd := strings.NewReader(conf.rawContent)
-		parser = &goThrift.Parser{Filesystem: nil}
-		definition, err = parser.Parse(rd)
+		parser = thrifter.NewParser(rd, false)
+		definition, err = parser.Parse("INPUT")
 	}
 
 	if err != nil {
@@ -81,7 +80,7 @@ func (g *protoGenerator) FilePath() (res string) {
 	return
 }
 
-// generate protoAST from thrift ast, return absolute file paths included by current file
+// parse thrift ast, return absolute file paths included by current file
 func (g *protoGenerator) Parse() (newFiles []FileInfo, err error) {
 	g.protoAST = &proto.Proto{}
 
