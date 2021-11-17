@@ -10,10 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/YYCoder/protobuf-thrift/utils"
-	"github.com/YYCoder/protobuf-thrift/utils/logger"
 	"github.com/emicklei/proto"
 	goThrift "github.com/samuel/go-thrift/parser"
+
+	"github.com/YYCoder/protobuf-thrift/utils"
+	"github.com/YYCoder/protobuf-thrift/utils/logger"
 )
 
 type protoGenerator struct {
@@ -158,15 +159,21 @@ func (g *protoGenerator) handleService(s *goThrift.Service) {
 	}
 	for _, i := range s.Methods {
 		// type convert
-		reqType, err := g.typeConverter(i.Arguments[0].Type)
-		if err != nil {
-			logger.Errorf("Invalid requestType %v", err)
-			continue
+		var reqType, resType string
+		var err error
+		if len(i.Arguments) > 0 {
+			reqType, err = g.typeConverter(i.Arguments[0].Type)
+			if err != nil {
+				logger.Errorf("Invalid requestType %v", err)
+				continue
+			}
 		}
-		resType, err := g.typeConverter(i.ReturnType)
-		if err != nil {
-			logger.Errorf("Invalid returnType %v", err)
-			continue
+		if i.ReturnType != nil {
+			resType, err = g.typeConverter(i.ReturnType)
+			if err != nil {
+				logger.Errorf("Invalid returnType %v", err)
+				continue
+			}
 		}
 
 		method := &proto.RPC{
