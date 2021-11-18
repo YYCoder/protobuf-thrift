@@ -209,7 +209,6 @@ func (g *protoGenerator) handleIncludes(path string) (newFile FileInfo) {
 	}
 
 	filePath := strings.ReplaceAll(path, ".thrift", ".proto")
-	// TODO: update doc
 	// ! NOTE: proto import paths are relative to protoc command's working directory or using
 	// ! NOTE: -I/--proto_path specified path, and can not include relative paths prefix, such as `./XXX.proto`.
 	// ! NOTE: so, user have to manually check the generated path is correct.
@@ -257,7 +256,7 @@ func (g *protoGenerator) handleService(s *thrifter.Service) {
 			if !function.Void && function.FunctionType != nil {
 				resName = utils.CaseConvert(g.conf.nameCase, function.FunctionType.Ident)
 			}
-			// TODO: update doc: oneway/throws/options will be ignored.
+			// oneway/throws/options will be ignored.
 			g.writeIndent()
 			g.protoContent.WriteString(fmt.Sprintf("rpc %s(%s) returns (%s) {}", name, reqName, resName))
 
@@ -364,10 +363,9 @@ func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
 			name := utils.CaseConvert(g.conf.nameCase, ele.Ident)
 
 			switch ele.FieldType.Type {
-			// TODO: update doc, set would be list
+			// set would be list
 			case thrifter.FIELD_TYPE_LIST, thrifter.FIELD_TYPE_SET:
 				// TODO: support nested list/set/map
-				// TODO: update doc
 				typeNameOrIdent := ""
 				if ele.FieldType.List.Elem.Type == thrifter.FIELD_TYPE_BASE {
 					typeNameOrIdent = ele.FieldType.List.Elem.BaseType
@@ -381,8 +379,7 @@ func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
 
 			case thrifter.FIELD_TYPE_MAP:
 				fieldType, keyType := "", ""
-				// TODO: support nested types
-				// TODO: update doc
+				// TODO: support nested types for map value
 				if ele.FieldType.Map.Value.Type == thrifter.FIELD_TYPE_BASE {
 					fieldType, _ = g.typeConverter(ele.FieldType.Map.Value.BaseType)
 				} else {
@@ -446,8 +443,8 @@ func (g *protoGenerator) basicTypeConverter(t string) (res string, err error) {
 		res = "double"
 	case "bool":
 		res = "bool"
-	case "binary":
-		res = "bytes"
+	// case "byte":
+	// 	res = "bytes"
 	default:
 		err = fmt.Errorf("Invalid basic type %s", t)
 	}

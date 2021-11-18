@@ -523,8 +523,8 @@ func (g *thriftGenerator) basicTypeConverter(t string) (res string, err error) {
 		res = "double"
 	case "bool":
 		res = "bool"
-	case "bytes":
-		res = "binary"
+	// case "bytes":
+	// 	res = "byte"
 	default:
 		err = fmt.Errorf("Invalid basic type %s", t)
 	}
