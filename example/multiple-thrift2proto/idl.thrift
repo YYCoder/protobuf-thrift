@@ -1,6 +1,8 @@
-include "./test.thrift";
-include "./common/admin.thrift";
+include "./test.thrift"
+include "./common/admin.thrift"
+
 enum OtherEnum {
+    // 123123
     OtherEnumUnknown = 0
     Unreviewed = 1
     Online = 2

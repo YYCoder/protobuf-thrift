@@ -1,7 +1,7 @@
-enum status {
-	statusUnknown = 0
-	statusUnreviewed = 1
-	statusOnline = 2
-	statusRejected = 3
-	statusOffline = 4
+enum Status {
+    StatusUnknown = 0
+    StatusUnreviewed = 1
+    StatusOnline = 2
+    StatusRejected = 3
+    StatusOffline = 4
 }

@@ -6,22 +6,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/YYCoder/protobuf-thrift/utils"
 	"github.com/YYCoder/protobuf-thrift/utils/logger"
 	"github.com/YYCoder/thrifter"
-	"github.com/emicklei/proto"
 )
 
 type protoGenerator struct {
-	conf         *protoGeneratorConfig
-	def          *thrifter.Thrift
-	file         *os.File
-	protoContent bytes.Buffer
-	// protoAST     *proto.Proto
+	conf           *protoGeneratorConfig
+	def            *thrifter.Thrift
+	file           *os.File
+	protoContent   bytes.Buffer
+	currentToken   *thrifter.Token
+	packageDeclare string // used to detect whether has duplicate package
 }
 
 type protoGeneratorConfig struct {
@@ -80,52 +79,118 @@ func (g *protoGenerator) FilePath() (res string) {
 	return
 }
 
-// parse thrift ast, return absolute file paths included by current file
-func (g *protoGenerator) Parse() (newFiles []FileInfo, err error) {
-	g.protoAST = &proto.Proto{}
-
-	g.handleSyntax()
-	g.handleNamespace(g.def.Namespaces)
-	if g.conf.taskType == TASK_FILE_THRIFT2PROTO {
-		for k, i := range g.def.Includes {
-			newFiles = append(newFiles, g.handleIncludes(k, i))
+func (g *protoGenerator) findNodeByStartToken(startToken *thrifter.Token, nodeType string) (res thrifter.Node) {
+	for _, node := range g.def.Nodes {
+		if node.NodeType() != nodeType {
+			continue
+		}
+		switch node.NodeType() {
+		case "Namespace":
+			n := node.(*thrifter.Namespace)
+			if n.StartToken == startToken {
+				return n
+			}
+		case "Enum":
+			n := node.(*thrifter.Enum)
+			if n.StartToken == startToken {
+				return n
+			}
+		case "Struct":
+			n := node.(*thrifter.Struct)
+			if n.StartToken == startToken {
+				return n
+			}
+		case "Service":
+			n := node.(*thrifter.Service)
+			if n.StartToken == startToken {
+				return n
+			}
+		case "Include":
+			n := node.(*thrifter.Include)
+			if n.StartToken == startToken {
+				return n
+			}
 		}
 	}
-	for _, i := range g.def.Enums {
-		g.handleEnum(i)
+	return
+}
+
+// iterate over token linked-list until specified token.
+func (g *protoGenerator) consumeUntilLiteral(lit string) {
+	for g.currentToken.Raw != lit && g.currentToken != nil {
+		g.currentToken = g.currentToken.Next
 	}
-	for _, i := range g.def.Structs {
-		g.handleStruct(i)
+}
+
+// parse thrift ast, return absolute file paths included by current file
+func (g *protoGenerator) Parse() (newFiles []FileInfo, err error) {
+	g.handleSyntax()
+
+	g.currentToken = g.def.StartToken
+
+	for g.currentToken != nil {
+		switch g.currentToken.Type {
+		case thrifter.T_COMMENT:
+			g.handleComment(g.currentToken)
+
+		case thrifter.T_LINEBREAK, thrifter.T_RETURN:
+			g.protoContent.WriteString(g.currentToken.Raw)
+			g.currentToken = g.currentToken.Next
+
+		case thrifter.T_NAMESPACE:
+			n := g.findNodeByStartToken(g.currentToken, "Namespace")
+			node := n.(*thrifter.Namespace)
+			g.handleNamespace(node)
+			g.currentToken = node.EndToken
+
+		case thrifter.T_ENUM:
+			n := g.findNodeByStartToken(g.currentToken, "Enum")
+			node := n.(*thrifter.Enum)
+			g.handleEnum(node)
+			g.currentToken = node.EndToken
+
+		case thrifter.T_STRUCT:
+			n := g.findNodeByStartToken(g.currentToken, "Struct")
+			node := n.(*thrifter.Struct)
+			g.handleStruct(node)
+			g.currentToken = node.EndToken
+
+		case thrifter.T_SERVICE:
+			n := g.findNodeByStartToken(g.currentToken, "Service")
+			node := n.(*thrifter.Service)
+			g.handleService(node)
+			g.currentToken = node.EndToken
+
+		case thrifter.T_INCLUDE, thrifter.T_CPP_INCLUDE:
+			n := g.findNodeByStartToken(g.currentToken, "Include")
+			node := n.(*thrifter.Include)
+			newFiles = append(newFiles, g.handleIncludes(node.FilePath))
+			g.currentToken = node.EndToken
+
+		default:
+			// other token will ignore
+			g.currentToken = g.currentToken.Next
+		}
+
 	}
-	for _, i := range g.def.Services {
-		g.handleService(i)
-	}
+
 	return
 }
 
 func (g *protoGenerator) handleSyntax() {
-	protoSyntax := &proto.Syntax{
-		Value:  fmt.Sprintf("proto%d", g.conf.syntax),
-		Parent: g.protoAST,
-	}
-	g.protoAST.Elements = append(g.protoAST.Elements, protoSyntax)
+	g.protoContent.WriteString(fmt.Sprintf("syntax = \"proto%d\";\n", g.conf.syntax))
 	return
 }
 
-func (g *protoGenerator) handleNamespace(n map[string]string) {
-	var packageName string
-	for _, name := range n {
-		packageName = name
+func (g *protoGenerator) handleNamespace(node *thrifter.Namespace) {
+	if g.packageDeclare == "" {
+		g.protoContent.WriteString(fmt.Sprintf("package %s;", node.Value))
+		g.packageDeclare = node.Value
 	}
-	protoPackage := &proto.Package{
-		Name:   packageName,
-		Parent: g.protoAST,
-	}
-	g.protoAST.Elements = append(g.protoAST.Elements, protoPackage)
 	return
 }
 
-func (g *protoGenerator) handleIncludes(name string, path string) (newFile FileInfo) {
+func (g *protoGenerator) handleIncludes(path string) (newFile FileInfo) {
 	if filepath.IsAbs(path) {
 		relPath, err := filepath.Rel(g.conf.filePath, path)
 		if err != nil {
@@ -143,196 +208,234 @@ func (g *protoGenerator) handleIncludes(name string, path string) (newFile FileI
 		}
 	}
 
-	protoImport := &proto.Import{
-		Filename: strings.ReplaceAll(path, ".thrift", ".proto"),
-		Parent:   g.protoAST,
-	}
-	g.protoAST.Elements = append(g.protoAST.Elements, protoImport)
+	filePath := strings.ReplaceAll(path, ".thrift", ".proto")
+	// TODO: update doc
+	// ! NOTE: proto import paths are relative to protoc command's working directory or using
+	// ! NOTE: -I/--proto_path specified path, and can not include relative paths prefix, such as `./XXX.proto`.
+	// ! NOTE: so, user have to manually check the generated path is correct.
+	// ! NOTE: https://developers.google.com/protocol-buffers/docs/proto#importing_definitions
+	g.protoContent.WriteString(fmt.Sprintf(`import "%s";`, filePath))
 	return
 }
 
-func (g *protoGenerator) handleService(s *goThrift.Service) {
-	protoService := &proto.Service{
-		Name:   s.Name,
-		Parent: g.protoAST,
-	}
-	for _, i := range s.Methods {
-		// type convert
-		var reqType, resType string
-		var err error
-		if len(i.Arguments) > 0 {
-			reqType, err = g.typeConverter(i.Arguments[0].Type)
-			if err != nil {
-				logger.Errorf("Invalid requestType %v", err)
-				continue
-			}
-		}
-		if i.ReturnType != nil {
-			resType, err = g.typeConverter(i.ReturnType)
-			if err != nil {
-				logger.Errorf("Invalid returnType %v", err)
-				continue
-			}
-		}
+// will ignore service/rpc options, since we already change to another language idl, the meaning for options are
+// totally different
+func (g *protoGenerator) handleService(s *thrifter.Service) {
+	for g.currentToken != s.EndToken {
+		switch g.currentToken.Type {
+		case thrifter.T_COMMENT:
+			g.writeIndent()
+			g.handleComment(g.currentToken)
 
-		method := &proto.RPC{
-			Name:        i.Name,
-			RequestType: reqType,
-			ReturnsType: resType,
-			Parent:      protoService,
-		}
+		case thrifter.T_LINEBREAK, thrifter.T_RETURN:
+			g.protoContent.WriteString(g.currentToken.Raw)
+			g.currentToken = g.currentToken.Next
 
-		if len(i.Annotations) > 0 {
-			// add options
-			o := &proto.Option{
-				// if use http option, default name is (google.api.http)
-				Name:   "(google.api.http)",
-				Parent: method,
-				Constant: proto.Literal{
-					OrderedMap: []*proto.NamedLiteral{},
-				},
-			}
-			options := []proto.Visitee{o}
-			for _, a := range i.Annotations {
-				lit := &proto.Literal{
-					Source:    a.Value,
-					QuoteRune: 34,
-					IsString:  true,
-				}
-				o.Constant.OrderedMap = append(o.Constant.OrderedMap, &proto.NamedLiteral{
-					Literal:     lit,
-					Name:        a.Name,
-					PrintsColon: true,
-				})
-			}
-			method.Elements = options
-		}
+		case thrifter.T_SERVICE:
+			g.consumeUntilLiteral("{")
+			// consume { token
+			g.currentToken = g.currentToken.Next
+			g.protoContent.WriteString(fmt.Sprintf("service %s {", utils.CaseConvert(g.conf.nameCase, s.Ident)))
 
-		// finally append method to service
-		protoService.Elements = append(protoService.Elements, method)
-	}
-	g.protoAST.Elements = append(g.protoAST.Elements, protoService)
-	return
-}
-
-func (g *protoGenerator) handleEnum(e *goThrift.Enum) {
-	protoEnum := &proto.Enum{
-		Name:   e.Name,
-		Parent: g.protoAST,
-	}
-
-	// since for-range map is random-ordered, we need to sort first
-	hasUnknownField := false
-	valueSlice := []proto.EnumField{}
-	for _, i := range e.Values {
-		if i.Value == 0 {
-			hasUnknownField = true
-		}
-		valueSlice = append(valueSlice, proto.EnumField{
-			Name:    i.Name,
-			Integer: i.Value,
-		})
-	}
-	// for protobuf which syntax is 3, enum field must have an default field which value is 0
-	if g.conf.syntax == 3 && !hasUnknownField {
-		valueSlice = append(valueSlice, proto.EnumField{
-			Name:    fmt.Sprintf("%v_Unknown", e.Name),
-			Integer: 0,
-		})
-	}
-	sort.Slice(valueSlice, func(i, j int) bool {
-		return valueSlice[i].Integer < valueSlice[j].Integer
-	})
-
-	visiteeSlice := []proto.Visitee{}
-	for _, v := range valueSlice {
-		visiteeSlice = append(visiteeSlice, &proto.EnumField{
-			Name:    v.Name,
-			Integer: v.Integer,
-		})
-	}
-
-	protoEnum.Elements = visiteeSlice
-	g.protoAST.Elements = append(g.protoAST.Elements, protoEnum)
-	return
-}
-
-func (g *protoGenerator) handleStruct(s *goThrift.Struct) {
-	message := &proto.Message{
-		Name:   s.Name,
-		Parent: g.protoAST,
-	}
-
-	elements := []proto.Visitee{}
-	for _, f := range s.Fields {
-		switch f.Type.Name {
-		case "list":
-			fieldType, _ := g.typeConverter(f.Type.ValueType)
-			pbField := &proto.Field{
-				Name:     f.Name,
-				Parent:   message,
-				Sequence: f.ID,
-				Type:     fieldType,
-			}
-			pbNormalField := &proto.NormalField{
-				Field:    pbField,
-				Repeated: true,
-			}
-			elements = append(elements, pbNormalField)
-		case "map":
-			fieldType, _ := g.typeConverter(f.Type.ValueType)
-			keyType, _ := g.basicTypeConverter(f.Type.KeyType)
-			pbField := &proto.Field{
-				Name:     f.Name,
-				Parent:   message,
-				Sequence: f.ID,
-				Type:     fieldType,
-			}
-			pbMapField := &proto.MapField{
-				Field:   pbField,
-				KeyType: keyType,
-			}
-
-			elements = append(elements, pbMapField)
-		// since proto doesn't have type set, we don't need to parse this type
-		case "set":
-			logger.Warnf("Protobuf doesn't have type set")
-			continue
 		default:
-			optional := g.conf.syntax == 2 && f.Optional
+			hash := thrifter.GenTokenHash(g.currentToken)
+			// find out current token is the start token of a function node
+			function, isFunctionStartToken := s.ElemsMap[hash]
+			if !isFunctionStartToken {
+				g.currentToken = g.currentToken.Next
+				continue
+			}
 
-			fieldType, _ := g.typeConverter(f.Type)
-			pbField := &proto.Field{
-				Name:     f.Name,
-				Parent:   message,
-				Sequence: f.ID,
-				Type:     fieldType,
+			name := utils.CaseConvert(g.conf.nameCase, function.Ident)
+			// if there are multiple arguments, will only pick first one, because protobuf rpc only support one argument
+			var reqName, resName string
+			if len(function.Args) > 0 {
+				// if the thrift function argument is a base type, e.g. i32/i64/bool/string, will be ignored
+				reqName = utils.CaseConvert(g.conf.nameCase, function.Args[0].FieldType.Ident)
 			}
-			pbNormalField := &proto.NormalField{
-				Field:    pbField,
-				Optional: optional,
+			// if thrift function return type is void, leave the rpc return field empty
+			if !function.Void && function.FunctionType != nil {
+				resName = utils.CaseConvert(g.conf.nameCase, function.FunctionType.Ident)
 			}
-			elements = append(elements, pbNormalField)
+			// TODO: update doc: oneway/throws/options will be ignored.
+			g.writeIndent()
+			g.protoContent.WriteString(fmt.Sprintf("rpc %s(%s) returns (%s) {}", name, reqName, resName))
+
+			// move to end token of the function node
+			g.currentToken = function.EndToken
 		}
 	}
-	message.Elements = elements
 
-	g.protoAST.Elements = append(g.protoAST.Elements, message)
+	g.protoContent.WriteString("}\n")
+	g.currentToken = s.EndToken
+
 	return
 }
 
-func (g *protoGenerator) typeConverter(t *goThrift.Type) (res string, err error) {
+func (g *protoGenerator) handleComment(tok *thrifter.Token) {
+	if strings.HasPrefix(g.currentToken.Raw, "#") {
+		content := fmt.Sprintf("//%s", strings.Replace(g.currentToken.Raw, "#", "", 1))
+		g.protoContent.WriteString(content)
+		g.currentToken = g.currentToken.Next
+		return
+	}
+	g.protoContent.WriteString(g.currentToken.Raw)
+	g.currentToken = g.currentToken.Next
+}
+
+func (g *protoGenerator) handleEnum(e *thrifter.Enum) {
+	hasTraverseFirstElement := false
+
+	for g.currentToken != e.EndToken {
+		switch g.currentToken.Type {
+		case thrifter.T_COMMENT:
+			g.writeIndent()
+			g.handleComment(g.currentToken)
+
+		case thrifter.T_LINEBREAK, thrifter.T_RETURN:
+			g.protoContent.WriteString(g.currentToken.Raw)
+			g.currentToken = g.currentToken.Next
+
+		case thrifter.T_ENUM:
+			g.consumeUntilLiteral("{")
+			// consume { token
+			g.currentToken = g.currentToken.Next
+			g.protoContent.WriteString(fmt.Sprintf("enum %s {", utils.CaseConvert(g.conf.nameCase, e.Ident)))
+
+		default:
+			hash := thrifter.GenTokenHash(g.currentToken)
+			// find out current token is the start token of a enum element node
+			ele, isElemStartToken := e.ElemsMap[hash]
+			if !isElemStartToken {
+				g.currentToken = g.currentToken.Next
+				continue
+			}
+
+			if !hasTraverseFirstElement {
+				hasTraverseFirstElement = true
+				// proto 3 enum first element must be zero, add a default element to it
+				if ele.ID > 0 && g.conf.syntax == 3 {
+					g.writeIndent()
+					name := utils.CaseConvert(g.conf.nameCase, fmt.Sprintf("%s_Unknown", e.Ident))
+					g.protoContent.WriteString(fmt.Sprintf("%s = 0;\n", name))
+				}
+			}
+			name := utils.CaseConvert(g.conf.nameCase, ele.Ident)
+			g.writeIndent()
+			g.protoContent.WriteString(fmt.Sprintf("%s = %d;", name, ele.ID))
+
+			// move to end token of the enum element node
+			g.currentToken = ele.EndToken
+		}
+	}
+
+	g.protoContent.WriteString("}")
+	g.currentToken = e.EndToken
+
+	return
+}
+
+func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
+	for g.currentToken != s.EndToken {
+		switch g.currentToken.Type {
+		case thrifter.T_COMMENT:
+			g.writeIndent()
+			g.handleComment(g.currentToken)
+
+		case thrifter.T_LINEBREAK, thrifter.T_RETURN:
+			g.protoContent.WriteString(g.currentToken.Raw)
+			g.currentToken = g.currentToken.Next
+
+		case thrifter.T_STRUCT:
+			g.consumeUntilLiteral("{")
+			// consume { token
+			g.currentToken = g.currentToken.Next
+			g.protoContent.WriteString(fmt.Sprintf("message %s {", utils.CaseConvert(g.conf.nameCase, s.Ident)))
+
+		default:
+			hash := thrifter.GenTokenHash(g.currentToken)
+			// find out current token is the start token of a struct element node
+			ele, isElemStartToken := s.ElemsMap[hash]
+			if !isElemStartToken {
+				g.currentToken = g.currentToken.Next
+				continue
+			}
+
+			name := utils.CaseConvert(g.conf.nameCase, ele.Ident)
+
+			switch ele.FieldType.Type {
+			// TODO: update doc, set would be list
+			case thrifter.FIELD_TYPE_LIST, thrifter.FIELD_TYPE_SET:
+				// TODO: support nested list/set/map
+				// TODO: update doc
+				typeNameOrIdent := ""
+				if ele.FieldType.List.Elem.Type == thrifter.FIELD_TYPE_BASE {
+					typeNameOrIdent = ele.FieldType.List.Elem.BaseType
+				} else {
+					typeNameOrIdent = ele.FieldType.List.Elem.Ident
+				}
+				fieldType, _ := g.typeConverter(typeNameOrIdent)
+
+				g.writeIndent()
+				g.protoContent.WriteString(fmt.Sprintf("repeated %s %s = %d;", fieldType, name, ele.ID))
+
+			case thrifter.FIELD_TYPE_MAP:
+				fieldType, keyType := "", ""
+				// TODO: support nested types
+				// TODO: update doc
+				if ele.FieldType.Map.Value.Type == thrifter.FIELD_TYPE_BASE {
+					fieldType, _ = g.typeConverter(ele.FieldType.Map.Value.BaseType)
+				} else {
+					fieldType, _ = g.typeConverter(ele.FieldType.Map.Value.Ident)
+				}
+				if ele.FieldType.Map.Key.Type == thrifter.FIELD_TYPE_BASE {
+					keyType, _ = g.typeConverter(ele.FieldType.Map.Key.BaseType)
+				} else {
+					keyType, _ = g.typeConverter(ele.FieldType.Map.Key.Ident)
+				}
+				g.writeIndent()
+				g.protoContent.WriteString(fmt.Sprintf("map<%s, %s> %s = %d;", keyType, fieldType, name, ele.ID))
+
+			default:
+				optional := g.conf.syntax == 2 && ele.Requiredness == "optional"
+				typeNameOrIdent := ""
+				if ele.FieldType.Type == thrifter.FIELD_TYPE_BASE {
+					typeNameOrIdent = ele.FieldType.BaseType
+				} else {
+					typeNameOrIdent = ele.FieldType.Ident
+				}
+				fieldType, _ := g.typeConverter(typeNameOrIdent)
+
+				g.writeIndent()
+				if optional {
+					g.protoContent.WriteString("optional ")
+				}
+
+				g.protoContent.WriteString(fmt.Sprintf("%s %s = %d;", fieldType, name, ele.ID))
+			}
+
+			// move to end token of the enum element node
+			g.currentToken = ele.EndToken
+		}
+	}
+
+	g.protoContent.WriteString("}")
+	g.currentToken = s.EndToken
+	return
+}
+
+func (g *protoGenerator) typeConverter(t string) (res string, err error) {
 	res, err = g.basicTypeConverter(t)
 	if err != nil {
 		// if t is not a basic type, then we should convert its case, same as name
-		res = utils.CaseConvert(g.conf.nameCase, t.Name)
+		res = utils.CaseConvert(g.conf.nameCase, t)
 		return res, nil
 	}
 	return
 }
 
-func (g *protoGenerator) basicTypeConverter(t *goThrift.Type) (res string, err error) {
-	switch t.Name {
+func (g *protoGenerator) basicTypeConverter(t string) (res string, err error) {
+	switch t {
 	case "string":
 		res = "string"
 	case "i64":
@@ -353,9 +456,6 @@ func (g *protoGenerator) basicTypeConverter(t *goThrift.Type) (res string, err e
 
 // write thrift code from thriftAST to output
 func (g *protoGenerator) Sink() (err error) {
-	// start traverse
-	g.protoAST.Accept(g)
-
 	if g.conf.outputDir != "" {
 		var file *os.File
 		err = os.MkdirAll(g.conf.outputDir, 0755)
@@ -377,126 +477,6 @@ func (g *protoGenerator) Sink() (err error) {
 		_, err = f.Write(g.protoContent.Bytes())
 	}
 
-	return
-}
-
-func (g *protoGenerator) VisitMessage(item *proto.Message) {
-	name := utils.CaseConvert(g.conf.nameCase, item.Name)
-	g.protoContent.WriteString(fmt.Sprintf("message %s {\n", name))
-	for _, e := range item.Elements {
-		e.Accept(g)
-	}
-	g.protoContent.WriteString("}\n")
-	return
-}
-func (g *protoGenerator) VisitService(item *proto.Service) {
-	name := utils.CaseConvert(g.conf.nameCase, item.Name)
-	g.protoContent.WriteString(fmt.Sprintf("service %s {\n", name))
-	for _, e := range item.Elements {
-		e.Accept(g)
-	}
-	g.protoContent.WriteString("}\n")
-	return
-}
-func (g *protoGenerator) VisitSyntax(item *proto.Syntax) {
-	g.protoContent.WriteString(fmt.Sprintf("syntax = \"%s\";\n", item.Value))
-	return
-}
-func (g *protoGenerator) VisitPackage(item *proto.Package) {
-	g.protoContent.WriteString(fmt.Sprintf("package %s;\n\n", item.Name))
-	return
-}
-func (g *protoGenerator) VisitOption(item *proto.Option) {
-	if item.Name == "(google.api.http)" {
-		g.writeIndent()
-		g.writeIndent()
-		g.protoContent.WriteString(fmt.Sprintf("option %s = {\n", item.Name))
-		for _, e := range item.Constant.OrderedMap {
-			g.writeIndent()
-			g.writeIndent()
-			g.writeIndent()
-			g.protoContent.WriteString(fmt.Sprintf("%s: \"%s\"\n", e.Name, e.Source))
-		}
-		g.writeIndent()
-		g.writeIndent()
-		g.protoContent.WriteString("};\n")
-	}
-	return
-}
-func (g *protoGenerator) VisitImport(item *proto.Import) {
-	g.protoContent.WriteString(fmt.Sprintf("import \"%s\";\n", item.Filename))
-	return
-}
-func (g *protoGenerator) VisitNormalField(item *proto.NormalField) {
-	name := utils.CaseConvert(g.conf.fieldCase, item.Name)
-	g.writeIndent()
-	if item.Optional {
-		g.protoContent.WriteString("optional ")
-	}
-	if item.Repeated {
-		g.protoContent.WriteString(fmt.Sprintf("repeated %s %s = %d;\n", item.Type, name, item.Sequence))
-	} else {
-		g.protoContent.WriteString(fmt.Sprintf("%s %s = %d;\n", item.Type, name, item.Sequence))
-	}
-	return
-}
-func (g *protoGenerator) VisitEnumField(item *proto.EnumField) {
-	fieldName := utils.CaseConvert(g.conf.fieldCase, item.Name)
-	g.writeIndent()
-	g.protoContent.WriteString(fmt.Sprintf("%s = %d;\n", fieldName, item.Integer))
-	return
-}
-func (g *protoGenerator) VisitEnum(item *proto.Enum) {
-	name := utils.CaseConvert(g.conf.nameCase, item.Name)
-	g.protoContent.WriteString(fmt.Sprintf("enum %s {\n", name))
-	for _, ele := range item.Elements {
-		ele.Accept(g)
-	}
-	g.protoContent.WriteString("}\n")
-	return
-}
-func (g *protoGenerator) VisitComment(item *proto.Comment) {
-	return
-}
-func (g *protoGenerator) VisitOneof(item *proto.Oneof) {
-	return
-}
-func (g *protoGenerator) VisitOneofField(item *proto.OneOfField) {
-	return
-}
-func (g *protoGenerator) VisitReserved(item *proto.Reserved) {
-	return
-}
-func (g *protoGenerator) VisitRPC(item *proto.RPC) {
-	name := utils.CaseConvert(g.conf.nameCase, item.Name)
-	reqName := utils.CaseConvert(g.conf.nameCase, item.RequestType)
-	resName := utils.CaseConvert(g.conf.nameCase, item.ReturnsType)
-	if len(item.Elements) > 0 {
-		g.writeIndent()
-		g.protoContent.WriteString(fmt.Sprintf("rpc %s(%s) returns (%s) {\n", name, reqName, resName))
-		for _, e := range item.Elements {
-			e.Accept(g)
-		}
-		g.writeIndent()
-		g.protoContent.WriteString("}\n")
-	} else {
-		g.writeIndent()
-		g.protoContent.WriteString(fmt.Sprintf("rpc %s(%s) returns (%s) {}\n", name, reqName, resName))
-	}
-	return
-}
-func (g *protoGenerator) VisitMapField(item *proto.MapField) {
-	name := utils.CaseConvert(g.conf.fieldCase, item.Name)
-	g.writeIndent()
-	g.protoContent.WriteString(fmt.Sprintf("map<%s, %s> %s = %d;\n", item.KeyType, item.Type, name, item.Sequence))
-	return
-}
-
-// proto 2
-func (g *protoGenerator) VisitGroup(item *proto.Group) {
-	return
-}
-func (g *protoGenerator) VisitExtensions(item *proto.Extensions) {
 	return
 }
 

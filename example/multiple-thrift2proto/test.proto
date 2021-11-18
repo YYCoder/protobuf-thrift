@@ -1,5 +1,6 @@
 syntax = "proto3";
 message TimeRange {
-    int64 start = 1;
-    int64 end = 2;
+    int64 Start = 1;
+    // asdasdas
+    int64 End = 2;
 }

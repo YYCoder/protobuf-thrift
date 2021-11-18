@@ -1,5 +1,5 @@
-include "./common/admin.thrift";
-include "./test.thrift";
+include "./common/admin.thrift"
+include "./test.thrift"
 enum OtherEnum {
     OtherEnumUnknown = 0
     Unreviewed = 1

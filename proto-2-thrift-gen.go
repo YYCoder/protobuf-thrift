@@ -259,7 +259,8 @@ func (g *thriftGenerator) handleImport(i *proto.Import) {
 	g.newFiles = append(g.newFiles, newFile)
 
 	// convert import declaration
-	g.thriftContent.WriteString(fmt.Sprintf("include \"%s\";\n", fileName))
+	// ! NOTE: thrift include can not using semicolon as end of declaration.
+	g.thriftContent.WriteString(fmt.Sprintf("include \"%s\"\n", fileName))
 }
 
 func (g *thriftGenerator) handleService(s *proto.Service) {

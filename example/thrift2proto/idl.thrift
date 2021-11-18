@@ -1,9 +1,17 @@
 namespace go test.test.test
 namespace py test.test.test
 
+/**
+ * 123123
+ */
+
+// asdasdasdsa
+# zxczxc
+
 enum Status {
-    StatusUnknown = 0
-    StatusUnreviewed = 1
+    /* 
+    asdasd */
+    StatusUnreviewed = 1             // 123123
     StatusOnline = 2
     StatusRejected = 3
     StatusOffline = 4
@@ -16,7 +24,8 @@ enum OtherEnum {
     Offline = 4
 }
 struct RespOfTestGetApi {
-    1: i32 Code
+    1: i32 Code # asdzxzxc
+    /* hahahaha */
     2: string Message
 }
 struct ReqOfTestPostApi {
@@ -57,8 +66,11 @@ struct RespOfTestOther {
     1: i64 A
     2: string B
 }
+
+/* lkzlxjclzjxc */
 service APIs {
-    RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req)
-    RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req)
-    RespOfTestOther TestOther (1: ReqOfTestOther Req)
+    # lallala
+    RespOfTestGetApi TestGetApi (1: ReqOfTestGetApi Req1) // zxczcx
+    RespOfTestPostApi TestPostApi (1: ReqOfTestPostApi Req2)
+    RespOfTestOther TestOther (1: ReqOfTestOther Req3)
 }

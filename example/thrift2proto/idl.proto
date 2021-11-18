@@ -1,9 +1,19 @@
 syntax = "proto3";
 package test.test.test;
 
+
+/**
+ * 123123
+ */
+
+// asdasdasdsa
+// zxczxc
+
 enum Status {
+    /* 
+    asdasd */
     StatusUnknown = 0;
-    StatusUnreviewed = 1;
+    StatusUnreviewed = 1;    // 123123
     StatusOnline = 2;
     StatusRejected = 3;
     StatusOffline = 4;
@@ -16,7 +26,8 @@ enum OtherEnum {
     Offline = 4;
 }
 message RespOfTestGetApi {
-    int32 Code = 1;
+    int32 Code = 1;    // asdzxzxc
+    /* hahahaha */
     string Message = 2;
 }
 message ReqOfTestPostApi {
@@ -57,8 +68,12 @@ message RespOfTestOther {
     int64 A = 1;
     string B = 2;
 }
+
+/* lkzlxjclzjxc */
 service APIs {
-    rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) {}
+    // lallala
+    rpc TestGetApi(ReqOfTestGetApi) returns (RespOfTestGetApi) {}    // zxczcx
     rpc TestPostApi(ReqOfTestPostApi) returns (RespOfTestPostApi) {}
     rpc TestOther(ReqOfTestOther) returns (RespOfTestOther) {}
 }
+
