@@ -36,7 +36,7 @@ protobuf-thrift -t thrift2proto -i ./path/to/idl.thrift -o ./idl.proto
 Basic protobuf file to thrift file transform:
 
 ```
-protobuf-thrift -t proto2thrift -i ./path/to/idl.thrift -o ./test.proto
+protobuf-thrift -t proto2thrift -i ./path/to/idl.proto -o ./idl.thrift
 ```
 
 ### Interactive Usage
