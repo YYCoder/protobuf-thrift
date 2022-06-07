@@ -1,4 +1,4 @@
-package main
+package pbthrift
 
 import (
 	"bufio"
@@ -18,7 +18,7 @@ import (
 )
 
 type thriftGenerator struct {
-	conf          *thriftGeneratorConfig
+	conf          *ThriftGeneratorConfig
 	def           *proto.Proto
 	file          *os.File
 	thriftContent bytes.Buffer
@@ -26,7 +26,7 @@ type thriftGenerator struct {
 	syntax        int
 }
 
-type thriftGeneratorConfig struct {
+type ThriftGeneratorConfig struct {
 	taskType   int
 	filePath   string // absolute path for current file
 	fileName   string // relative filename including path for file to be generated
@@ -42,9 +42,10 @@ type thriftGeneratorConfig struct {
 	syntax int // 2 or 3
 }
 
-func NewThriftGenerator(conf *thriftGeneratorConfig) (res SubGenerator, err error) {
+func NewThriftGenerator(conf *ThriftGeneratorConfig) (res SubGenerator, err error) {
 	var parser *proto.Parser
 	var file *os.File
+	var content string
 	var syntax int
 	if conf.taskType == TASK_FILE_PROTO2THRIFT {
 		file, err = os.Open(conf.filePath)
@@ -60,23 +61,27 @@ func NewThriftGenerator(conf *thriftGeneratorConfig) (res SubGenerator, err erro
 			return nil, err
 		}
 		defer file1.Close()
-		content, err := io.ReadAll(file1)
+		contentBytes, err := io.ReadAll(file1)
 		if err != nil {
 			return nil, err
 		}
-		if strings.Contains(string(content), "syntax = \"proto3\"") {
-			syntax = 3
-		} else {
-			syntax = 2
-		}
+		content = string(contentBytes)
 	} else if conf.taskType == TASK_CONTENT_PROTO2THRIFT {
-		if strings.Contains(conf.rawContent, "syntax = \"proto3\"") {
-			syntax = 3
-		} else {
-			syntax = 2
-		}
+		content = conf.rawContent
 		rd := strings.NewReader(conf.rawContent)
 		parser = proto.NewParser(rd)
+	}
+
+	if strings.Contains(content, "syntax =") {
+		if strings.Contains(content, "syntax = \"proto3\"") {
+			syntax = 3
+		} else {
+			syntax = 2
+		}
+	} else if conf.syntax != 0 {
+		syntax = conf.syntax
+	} else {
+		syntax = 3
 	}
 
 	definition, err := parser.Parse()
@@ -540,4 +545,8 @@ func (g *thriftGenerator) writeIndent() {
 	} else {
 		g.thriftContent.WriteString("	")
 	}
+}
+
+func (g *thriftGenerator) Pipe() (res []byte, err error) {
+	return g.thriftContent.Bytes(), nil
 }

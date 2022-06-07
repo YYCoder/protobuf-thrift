@@ -1,11 +1,12 @@
 package main
 
 import (
+	pbThrift "github.com/YYCoder/protobuf-thrift"
 	"github.com/YYCoder/protobuf-thrift/utils/logger"
 )
 
 func main() {
-	runner, err := NewRunner()
+	runner, err := pbThrift.NewRunner()
 	if err != nil {
 		logger.Fatal(err)
 	}

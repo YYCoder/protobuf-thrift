@@ -1,4 +1,4 @@
-package main
+package pbthrift
 
 import (
 	"io/fs"
@@ -19,12 +19,14 @@ type FileInfo struct {
 type SubGenerator interface {
 	Parse() (newFiles []FileInfo, err error) // return relative file path to parsed file
 	Sink() (err error)
+	Pipe() (res []byte, err error)
 	FilePath() (res string)
 }
 
 // Main generator for all idl files, responsible for initialize all SubGenerator for each file
 type Generator interface {
 	Generate() (err error)
+	Pipe() (res []byte, err error)
 }
 
 func NewGenerator(conf *RunnerConfig) (res Generator, err error) {
@@ -35,7 +37,7 @@ func NewGenerator(conf *RunnerConfig) (res Generator, err error) {
 	}
 
 	if conf.Task == TASK_CONTENT_PROTO2THRIFT || conf.Task == TASK_CONTENT_THRIFT2PROTO {
-		gen.initSubGeneratorForRawContent()
+		err = gen.initSubGeneratorForRawContent()
 	} else {
 		_, filename := filepath.Split(conf.InputPath)
 
@@ -86,6 +88,22 @@ func (g *generator) Generate() (err error) {
 			logger.Fatalf("Error occurred when generating file %v", sub.FilePath(), err)
 			return
 		}
+	}
+	return
+}
+
+// Pipe the transformed result to return value, since the scenario for Pipe is using protobuf-thrift as a lib, currently not support recursive transform.
+func (g *generator) Pipe() (res []byte, err error) {
+	for _, sub := range g.subGeneratorMap {
+		if _, err = sub.Parse(); err != nil {
+			logger.Fatalf("Error occurred when parsing file %v", sub.FilePath())
+			return
+		}
+		if res, err = sub.Pipe(); err != nil {
+			logger.Fatalf("Error occurred when generating file %v", sub.FilePath(), err)
+			return
+		}
+		break
 	}
 	return
 }
@@ -200,7 +218,7 @@ func (g *generator) initSubGenerator(fileInfos []FileInfo) (err error) {
 
 		if g.conf.Task == TASK_FILE_PROTO2THRIFT {
 			var generator SubGenerator
-			conf := &thriftGeneratorConfig{
+			conf := &ThriftGeneratorConfig{
 				taskType:       g.conf.Task,
 				filePath:       path,
 				fileName:       filename,
@@ -219,7 +237,7 @@ func (g *generator) initSubGenerator(fileInfos []FileInfo) (err error) {
 			g.subGeneratorMap[path] = generator
 		} else if g.conf.Task == TASK_FILE_THRIFT2PROTO {
 			var generator SubGenerator
-			conf := &protoGeneratorConfig{
+			conf := &ProtoGeneratorConfig{
 				taskType:       g.conf.Task,
 				filePath:       path,
 				fileName:       filename,
@@ -250,7 +268,7 @@ func (g *generator) initSubGeneratorForRawContent() (err error) {
 	})
 	if g.conf.Task == TASK_CONTENT_PROTO2THRIFT {
 		var generator SubGenerator
-		conf := &thriftGeneratorConfig{
+		conf := &ThriftGeneratorConfig{
 			taskType:       g.conf.Task,
 			rawContent:     g.conf.RawContent,
 			filePath:       path,
@@ -262,12 +280,13 @@ func (g *generator) initSubGeneratorForRawContent() (err error) {
 		}
 		generator, err = NewThriftGenerator(conf)
 		if err != nil {
-			return
+			logger.Errorf("NewThriftGenerator failed, %s", err)
+			return err
 		}
 		g.subGeneratorMap[path] = generator
 	} else if g.conf.Task == TASK_CONTENT_THRIFT2PROTO {
 		var generator SubGenerator
-		conf := &protoGeneratorConfig{
+		conf := &ProtoGeneratorConfig{
 			taskType:       g.conf.Task,
 			rawContent:     g.conf.RawContent,
 			filePath:       path,
@@ -279,7 +298,8 @@ func (g *generator) initSubGeneratorForRawContent() (err error) {
 		}
 		generator, err = NewProtoGenerator(conf)
 		if err != nil {
-			return
+			logger.Errorf("NewProtoGenerator failed, %s", err)
+			return err
 		}
 		g.subGeneratorMap[path] = generator
 	}

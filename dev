@@ -1,0 +1,5 @@
+#! /bin/bash
+
+cd ./exe
+
+gowatch -args='-t=proto2thrift' -o protobuf-thrift

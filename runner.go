@@ -1,4 +1,4 @@
-package main
+package pbthrift
 
 import (
 	"flag"
@@ -18,10 +18,11 @@ const (
 )
 
 type Runner struct {
-	config *RunnerConfig
+	Config *RunnerConfig
 }
 
 type RunnerConfig struct {
+	Pipe       bool // return the result from Generator instead of printing to os.Stdout or filesystem
 	RawContent string
 	InputPath  string // absolute path for input idl file
 	OutputDir  string // absolute path for output dir
@@ -111,18 +112,28 @@ func NewRunner() (res *Runner, err error) {
 		Recursive:      recursive,
 	}
 	res = &Runner{
-		config: config,
+		Config: config,
 	}
 	return
 }
 
 func (r *Runner) Run() (err error) {
 	var generator Generator
-	generator, err = NewGenerator(r.config)
+	generator, err = NewGenerator(r.Config)
 	if err != nil {
 		return
 	}
 	err = generator.Generate()
+	return
+}
+
+func (r *Runner) Pipe() (res []byte, err error) {
+	var generator Generator
+	generator, err = NewGenerator(r.Config)
+	if err != nil {
+		return
+	}
+	res, err = generator.Pipe()
 	return
 }
 

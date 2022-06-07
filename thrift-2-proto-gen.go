@@ -1,4 +1,4 @@
-package main
+package pbthrift
 
 import (
 	"bufio"
@@ -15,7 +15,7 @@ import (
 )
 
 type protoGenerator struct {
-	conf           *protoGeneratorConfig
+	conf           *ProtoGeneratorConfig
 	def            *thrifter.Thrift
 	file           *os.File
 	protoContent   bytes.Buffer
@@ -23,7 +23,7 @@ type protoGenerator struct {
 	packageDeclare string // used to detect whether has duplicate package
 }
 
-type protoGeneratorConfig struct {
+type ProtoGeneratorConfig struct {
 	taskType   int
 	filePath   string // absolute path for current file
 	fileName   string // output file name, including extension
@@ -39,7 +39,7 @@ type protoGeneratorConfig struct {
 	syntax int // 2 or 3
 }
 
-func NewProtoGenerator(conf *protoGeneratorConfig) (res SubGenerator, err error) {
+func NewProtoGenerator(conf *ProtoGeneratorConfig) (res SubGenerator, err error) {
 	var parser *thrifter.Parser
 	var file *os.File
 	var definition *thrifter.Thrift
@@ -487,4 +487,8 @@ func (g *protoGenerator) writeIndent() {
 		g.protoContent.WriteString("	")
 	}
 	return
+}
+
+func (g *protoGenerator) Pipe() (res []byte, err error) {
+	return g.protoContent.Bytes(), nil
 }
