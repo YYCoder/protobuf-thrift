@@ -315,11 +315,11 @@ func (g *protoGenerator) handleEnum(e *thrifter.Enum) {
 				// proto 3 enum first element must be zero, add a default element to it
 				if ele.ID > 0 && g.conf.syntax == 3 {
 					g.writeIndent()
-					name := utils.CaseConvert(g.conf.nameCase, fmt.Sprintf("%s_Unknown", e.Ident))
+					name := utils.CaseConvert(g.conf.fieldCase, fmt.Sprintf("%s_Unknown", e.Ident))
 					g.protoContent.WriteString(fmt.Sprintf("%s = 0;\n", name))
 				}
 			}
-			name := utils.CaseConvert(g.conf.nameCase, ele.Ident)
+			name := utils.CaseConvert(g.conf.fieldCase, ele.Ident)
 			g.writeIndent()
 			g.protoContent.WriteString(fmt.Sprintf("%s = %d;", name, ele.ID))
 
@@ -360,7 +360,7 @@ func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
 				continue
 			}
 
-			name := utils.CaseConvert(g.conf.nameCase, ele.Ident)
+			name := utils.CaseConvert(g.conf.fieldCase, ele.Ident)
 
 			switch ele.FieldType.Type {
 			// set would be list
@@ -378,6 +378,7 @@ func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
 				g.protoContent.WriteString(fmt.Sprintf("repeated %s %s = %d;", fieldType, name, ele.ID))
 
 			case thrifter.FIELD_TYPE_MAP:
+				optional := g.conf.syntax == 2 && ele.Requiredness == "optional"
 				fieldType, keyType := "", ""
 				// TODO: support nested types for map value
 				if ele.FieldType.Map.Value.Type == thrifter.FIELD_TYPE_BASE {
@@ -391,6 +392,9 @@ func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
 					keyType, _ = g.typeConverter(ele.FieldType.Map.Key.Ident)
 				}
 				g.writeIndent()
+				if optional {
+					g.protoContent.WriteString("optional ")
+				}
 				g.protoContent.WriteString(fmt.Sprintf("map<%s, %s> %s = %d;", keyType, fieldType, name, ele.ID))
 
 			default:
