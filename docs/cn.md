@@ -15,9 +15,15 @@
 * [protobuf](https://developers.google.com/protocol-buffers/docs/reference/proto3-spec)
 
 ## 安装
-如果没有 go 开发环境，可以直接从 release 中下载最新版的对应平台的二进制文件。
+### Use as a executable
+1. 首先 git clone，`git clone github.com/YYCoder/protobuf-thrift`
 
-对于 Gophers，可以直接使用 `go install github.com/YYCoder/protobuf-thrift`。
+2. 运行 `make`，产出会在 `./exe` 目录下
+
+### Use as a library
+1. 在你的 go module 中 go get，`go get github.com/YYCoder/protobuf-thrift`
+
+2. 直接从 `github.com/YYCoder/protobuf-thrift` import package 即可
 
 ## 使用示例
 
