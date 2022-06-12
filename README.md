@@ -16,12 +16,16 @@ Feel free to try out our [web interface](https://pb-thrift.markeyyuan.monster/),
 
 * [protobuf](https://developers.google.com/protocol-buffers/docs/reference/proto3-spec)
 
-
-
 ## Install
-For folks don't have GO development environment, directly download corresponding platform binary from latest release is the best choice.
+### Use as a executable
+1. first git clone this repo, `git clone github.com/YYCoder/protobuf-thrift`
 
-For Gophers, you can just `go install github.com/YYCoder/protobuf-thrift` it yourself.
+2. make, the executable will be compiled to `./exe` folder
+
+### Use as a library
+1. go get this in your go module, `go get github.com/YYCoder/protobuf-thrift`
+
+2. import package from `github.com/YYCoder/protobuf-thrift`
 
 
 ## Usages
