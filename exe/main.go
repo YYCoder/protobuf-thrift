@@ -1,8 +1,8 @@
 package main
 
 import (
-	pbThrift "github.com/YYCoder/protobuf-thrift"
-	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	pbThrift "github.com/kevinzfb/protobuf-thrift"
+	"github.com/kevinzfb/protobuf-thrift/utils/logger"
 )
 
 func main() {

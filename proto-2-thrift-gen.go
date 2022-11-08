@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/YYCoder/protobuf-thrift/utils"
-	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	"github.com/kevinzfb/protobuf-thrift/utils"
+	"github.com/kevinzfb/protobuf-thrift/utils/logger"
 	"github.com/YYCoder/thrifter"
 	"github.com/emicklei/proto"
 )
@@ -40,6 +40,12 @@ type ThriftGeneratorConfig struct {
 
 	// pb config
 	syntax int // 2 or 3
+
+	//[kevinzfb] added configs
+	addUnknownToEnums bool
+	namespace         string
+	namespaceLangs    []string
+	enumCase          string
 }
 
 func NewThriftGenerator(conf *ThriftGeneratorConfig) (res SubGenerator, err error) {
@@ -232,7 +238,17 @@ func (g *thriftGenerator) handleComment(ele *proto.Comment, inline bool, indentC
 }
 
 func (g *thriftGenerator) handlePackage(p *proto.Package) {
-	g.thriftContent.WriteString(fmt.Sprintf("namespace * %s;\n\n", p.Name))
+	// [kevinzfb] Allow for specifying languages to be used in namespace
+	namespace := p.Name
+	if g.conf.namespace != "" {
+		namespace = g.conf.namespace
+	}
+
+	for _, language := range g.conf.namespaceLangs {
+		g.thriftContent.WriteString(fmt.Sprintf("namespace %s %s\n", language, namespace))
+	}
+
+	g.thriftContent.WriteString("\n")
 	return
 }
 
@@ -306,8 +322,23 @@ func (g *thriftGenerator) handleEnum(s *proto.Enum) {
 	g.thriftContent.WriteString(fmt.Sprintf("enum %s {\n", name))
 	// since for-range map is random-ordered, we need to sort first, then write
 	valueSlice := []*proto.EnumField{}
+
+	// [kevinzfb] Add an UNKNOWN field to enum as a best practice.
+	if g.conf.addUnknownToEnums {
+		valueSlice = append(valueSlice, &proto.EnumField{
+			Name:    "UNKNOWN",
+			Integer: 0,
+		})
+	}
+
 	for _, value := range s.Elements {
 		ele := value.(*proto.EnumField)
+
+		// [kevinzfb] For cases where we do add an UNKNOWN field, increment the other enum values.
+		if g.conf.addUnknownToEnums {
+			ele.Integer++
+		}
+
 		valueSlice = append(valueSlice, ele)
 	}
 	sort.Slice(valueSlice, func(i, j int) bool {
@@ -320,7 +351,8 @@ func (g *thriftGenerator) handleEnum(s *proto.Enum) {
 			g.handleComment(field.Comment, false, 1)
 		}
 
-		fieldName := utils.CaseConvert(g.conf.fieldCase, field.Name)
+		// [kevinzfb] Use enumCase for enum capitalization
+		fieldName := utils.CaseConvert(g.conf.enumCase, field.Name)
 		g.writeIndent()
 		g.thriftContent.WriteString(fmt.Sprintf("%s = %d", fieldName, field.Integer))
 		// handle comment after field line
@@ -345,7 +377,8 @@ func (g *thriftGenerator) handleMessage(m *proto.Message) {
 	// in case ident is a nested enum or message name, check first.
 	// NOTE: nested fields must declare before other fields refer to them, otherwise it can't be identified.
 	var getIdentFieldName = func(ident string) string {
-		nestedName := utils.CaseConvert(g.conf.fieldCase, fmt.Sprintf("%s%s", m.Name, ident))
+		// [kevinzfb] Bugfix because this seems to be used for getting the field type, not field name.
+		nestedName := utils.CaseConvert(g.conf.nameCase, fmt.Sprintf("%s%s", m.Name, ident))
 		for _, e := range nestedEnums {
 			if e.Name == nestedName {
 				return nestedName
@@ -517,19 +550,20 @@ func (g *thriftGenerator) typeConverter(t string) (res string, err error) {
 }
 
 func (g *thriftGenerator) basicTypeConverter(t string) (res string, err error) {
+	// [kevinzfb] we will convert unsigned ints to signed ints, and bytes to binary.
 	switch t {
 	case "string":
 		res = "string"
-	case "int64":
+	case "int64", "uint64":
 		res = "i64"
-	case "int32":
+	case "int32", "uint32":
 		res = "i32"
 	case "float", "double":
 		res = "double"
 	case "bool":
 		res = "bool"
-	// case "bytes":
-	// 	res = "byte"
+	case "bytes":
+	 	res = "binary"
 	default:
 		err = fmt.Errorf("Invalid basic type %s", t)
 	}

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	"github.com/kevinzfb/protobuf-thrift/utils/logger"
 )
 
 // Represent a file need to be converted, including current absolute path and absolute converted output path
@@ -228,6 +228,12 @@ func (g *generator) initSubGenerator(fileInfos []FileInfo) (err error) {
 				fieldCase:      g.conf.FieldCase,
 				nameCase:       g.conf.NameCase,
 				syntax:         g.conf.Syntax,
+
+				//[kevinzfb] added configs
+				addUnknownToEnums: g.conf.AddUnknownToEnums,
+				namespace:         g.conf.Namespace,
+				namespaceLangs:    g.conf.NamespaceLangs,
+				enumCase:          g.conf.EnumCase,
 			}
 			generator, err = NewThriftGenerator(conf)
 			if err != nil {
@@ -277,6 +283,12 @@ func (g *generator) initSubGeneratorForRawContent() (err error) {
 			fieldCase:      g.conf.FieldCase,
 			nameCase:       g.conf.NameCase,
 			syntax:         g.conf.Syntax,
+
+			//[kevinzfb] added configs
+			addUnknownToEnums: g.conf.AddUnknownToEnums,
+			namespace:         g.conf.Namespace,
+			namespaceLangs:    g.conf.NamespaceLangs,
+			enumCase:          g.conf.EnumCase,
 		}
 		generator, err = NewThriftGenerator(conf)
 		if err != nil {

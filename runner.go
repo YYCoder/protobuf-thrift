@@ -5,9 +5,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"strconv"
 
-	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	"github.com/kevinzfb/protobuf-thrift/utils/logger"
 )
 
 const (
@@ -36,12 +37,21 @@ type RunnerConfig struct {
 
 	// pb config
 	Syntax int // 2 or 3
+
+	// [kevinzfb] forked config options
+	AddUnknownToEnums  bool            // best practice for Thrift
+	Namespace          string          // allows for specifying a different namespace
+	NamespaceLangs     []string        // list of languages for namespace declaration
+	EnumCase           string
 }
 
 func NewRunner() (res *Runner, err error) {
 	var rawContent, inputPath, outputDir, taskType, useSpaceIndent, indentSpace string
 	var nameCase, fieldCase string
 	var syntaxStr, recursiveStr string
+
+	// [kevinzfb] forked params
+	var addUnknownToEnums, namespace, nsLangs, enumCase string
 
 	// flags declaration using flag package
 	flag.StringVar(&taskType, "t", "", "proto => thrift or thrift => proto, valid values proto2thrift and thrift2proto")
@@ -50,9 +60,15 @@ func NewRunner() (res *Runner, err error) {
 	flag.StringVar(&recursiveStr, "r", "0", "Recursive parse file with imported files")
 	flag.StringVar(&useSpaceIndent, "use-space-indent", "0", "Use space for indent rather than tab")
 	flag.StringVar(&indentSpace, "indent-space", "4", "The space count for each indent")
-	flag.StringVar(&fieldCase, "field-case", "camelCase", "Text case for enum field and message or struct field, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase")
+	flag.StringVar(&fieldCase, "field-case", "camelCase", "Text case for message or struct field, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase")
 	flag.StringVar(&nameCase, "name-case", "camelCase", "Text case for enum and message or struct name, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase")
 	flag.StringVar(&syntaxStr, "syntax", "3", "Syntax for generated protobuf idl")
+
+	// [kevinzfb] added flags
+	flag.StringVar(&addUnknownToEnums, "add-unknown-to-enums", "", "Add an UNKNOWN entry with value 0 at the beginning of every enum (proto2thrift only)")
+	flag.StringVar(&namespace, "namespace", "", "Overrides namespace in each file with the specified namespace (proto2thrift only)")
+	flag.StringVar(&nsLangs, "namespace-languages", "*", "Languages to be used in namespace declarations (proto2thrift only)")
+	flag.StringVar(&enumCase, "enum-case", "screamingSnakeCase", "Text case for enum field, available options: camelCase, snakeCase, kababCase, pascalCase, screamingSnakeCase (proto2thrift only for now)")
 
 	flag.Parse() // after declaring flags we need to call it
 
@@ -66,6 +82,8 @@ func NewRunner() (res *Runner, err error) {
 	syntax := ValidateSyntax(syntaxStr)
 	recursive := ValidateRecursive(recursiveStr)
 	spaceIndent := useSpaceIndent == "1"
+	namespaceLangs := strings.Split(nsLangs, ",")
+	unknownToEnums := addUnknownToEnums != ""
 	var task int
 	if taskType == "proto2thrift" {
 		if inputPath != "" {
@@ -110,6 +128,12 @@ func NewRunner() (res *Runner, err error) {
 		Task:           task,
 		Syntax:         syntax,
 		Recursive:      recursive,
+
+		// [kevinzfb] forked configs
+		AddUnknownToEnums: unknownToEnums,
+		Namespace:         namespace,
+		NamespaceLangs:    namespaceLangs,
+		EnumCase:          enumCase,
 	}
 	res = &Runner{
 		Config: config,

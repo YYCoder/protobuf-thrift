@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/YYCoder/protobuf-thrift/utils"
-	"github.com/YYCoder/protobuf-thrift/utils/logger"
+	"github.com/kevinzfb/protobuf-thrift/utils"
+	"github.com/kevinzfb/protobuf-thrift/utils/logger"
 	"github.com/YYCoder/thrifter"
 )
 
