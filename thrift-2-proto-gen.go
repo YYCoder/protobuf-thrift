@@ -371,13 +371,24 @@ func (g *protoGenerator) handleStruct(s *thrifter.Struct) {
 
 			switch ele.FieldType.Type {
 			// set would be list
-			case thrifter.FIELD_TYPE_LIST, thrifter.FIELD_TYPE_SET:
+			case thrifter.FIELD_TYPE_LIST:
 				// TODO: support nested list/set/map
 				typeNameOrIdent := ""
 				if ele.FieldType.List.Elem.Type == thrifter.FIELD_TYPE_BASE {
 					typeNameOrIdent = ele.FieldType.List.Elem.BaseType
 				} else {
 					typeNameOrIdent = ele.FieldType.List.Elem.Ident
+				}
+				fieldType, _ := g.typeConverter(typeNameOrIdent)
+
+				g.writeIndent()
+				g.protoContent.WriteString(fmt.Sprintf("repeated %s %s = %d;", fieldType, name, ele.ID))
+			case thrifter.FIELD_TYPE_SET:
+				typeNameOrIdent := ""
+				if ele.FieldType.Set.Elem.Type == thrifter.FIELD_TYPE_BASE {
+					typeNameOrIdent = ele.FieldType.Set.Elem.BaseType
+				} else {
+					typeNameOrIdent = ele.FieldType.Set.Elem.Ident
 				}
 				fieldType, _ := g.typeConverter(typeNameOrIdent)
 
